@@ -20,6 +20,7 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; background: var(--pitch); }
 body {
   color: var(--chalk); font-family: var(--body); font-size: 15px; line-height: 1.45;
@@ -27,14 +28,18 @@ body {
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
 .wrap { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
-button { font: inherit; color: inherit; }
-button:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+button, input { font: inherit; color: inherit; }
+button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 h1 { font-family: var(--display); font-size: 34px; letter-spacing: .02em; text-transform: uppercase; margin: 0; line-height: 1; }
 .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--away); }
 .dot.on { background: var(--home); animation: pulse 1.6s ease-in-out infinite; }
+.plan { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--draw); }
 .notice { color: var(--muted); font-size: 13px; margin: 0; }
+.tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tab { background: var(--pitch-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 4px; font-weight: 600; font-size: 14px; cursor: pointer; text-align: center; }
+.tab[aria-selected="true"] { background: var(--home); color: #0d261c; border-color: var(--home); }
 .list { display: flex; flex-direction: column; gap: 12px; }
 .card { width: 100%; text-align: left; background: var(--pitch-2); border: 1px solid var(--line); border-radius: 14px; padding: 14px; cursor: pointer; display: flex; flex-direction: column; gap: 10px; }
 .card:hover { border-color: var(--muted); }
@@ -67,7 +72,19 @@ h2 { font-family: var(--display); font-size: 18px; letter-spacing: .06em; text-t
 .key { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
 .key i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
 .nodata { color: var(--muted); font-size: 13px; margin: 0; }
+.lock { color: var(--draw); font-size: 13px; font-weight: 600; margin: 0; }
 .empty { color: var(--muted); text-align: center; padding: 32px 8px; }
+.cta { display: block; text-align: center; background: var(--home); color: #0d261c; font-weight: 700; font-size: 17px; padding: 14px; border-radius: 12px; text-decoration: none; }
+.codeform { display: flex; gap: 8px; }
+.codeform input { flex: 1; min-width: 0; background: var(--pitch); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; text-transform: uppercase; }
+.btn { background: var(--pitch); border: 1px solid var(--muted); border-radius: 10px; padding: 10px 16px; font-weight: 600; cursor: pointer; }
+.coupon-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.odds { font-family: var(--display); font-size: 34px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+.leg { border-top: 1px solid var(--line); padding-top: 8px; display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
+.leg small { color: var(--muted); display: block; }
+.leg .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.analysis { margin: 0; font-size: 14px; }
+.tag { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 footer { color: var(--muted); font-size: 12px; }
 @keyframes pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .dot.on { animation: none; } .stack span { transition: none; } }
@@ -79,20 +96,45 @@ footer { color: var(--muted); font-size: 12px; }
     <h1>Foot Predict</h1>
     <span class="pill"><span class="dot" id="dot" aria-hidden="true"></span><span id="state">Connexion…</span></span>
   </header>
-  <p class="notice" id="notice">Les probabilités sont des estimations statistiques, jamais des certitudes.</p>
+  <p class="notice"><span class="plan" id="plan">Gratuit</span> · <span id="notice">Les probabilités sont des estimations statistiques, jamais des certitudes.</span></p>
+
+  <section class="panel gate" id="gate" hidden>
+    <h2 id="gatetitle">Accès Premium</h2>
+    <p class="nodata">Débloque les probabilités détaillées, l'analyse des grands matchs et les 3 coupons du jour (confiance, équilibré, risque), mis à jour chaque jour à 00h.</p>
+    <a class="cta" id="pay" href="#" rel="noopener">Payer avec Wave</a>
+    <p class="nodata" id="payhelp">Après le paiement, envoie ta preuve pour recevoir ton code d'accès, puis saisis-le ci-dessous.</p>
+    <form class="codeform" id="codeform" autocomplete="off">
+      <input id="codein" type="text" placeholder="Code d'accès (FP-…)" aria-label="Code d'accès" autocapitalize="characters" spellcheck="false">
+      <button class="btn" type="submit">Activer</button>
+    </form>
+    <p class="nodata" id="codemsg" role="status"></p>
+  </section>
+
+  <nav class="tabs" role="tablist" id="tabs">
+    <button class="tab" type="button" role="tab" data-tab="matchs">Matchs</button>
+    <button class="tab" type="button" role="tab" data-tab="coupons">Coupons du jour</button>
+    <button class="tab" type="button" role="tab" data-tab="grands">Grands matchs</button>
+  </nav>
+
   <main id="app"><p class="empty">Connexion au serveur…</p></main>
-  <footer>Modèle : buts attendus par équipe (loi de Poisson, correction Dixon-Coles), recalculés à chaque mise à jour du match.</footer>
+  <footer>Modèle : buts attendus par équipe (loi de Poisson, correction Dixon-Coles), recalculés à chaque mise à jour du match. Les paris comportent des risques : aucun gain n'est garanti. Réservé aux 18 ans et plus.</footer>
 </div>
 
 <script>
 (function () {
   var matches = [], mode = "", season = null, connected = false;
+  var cfg = {}, code = lsGet("fp_code"), premium = false, expires = null, tab = "matchs", daily = null, ws = null;
 
+  function lsGet(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   function P(l) { return { h: l.home_win, d: l.draw, a: l.away_win, o25: l.over_2_5, btts: l.btts, score: l.most_likely_score, xh: l.xg_home, xa: l.xg_away }; }
   function pct3(p) { var a = Math.round(p.h * 100), b = Math.round(p.d * 100); return [a, b, Math.max(0, 100 - a - b)]; }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function pc(x) { return Math.round(x * 100) + " %"; }
+  function fmtDate(iso) { var p = String(iso || "").split("-"); return p.length === 3 ? p[2] + "/" + p[1] + "/" + p[0] : ""; }
 
   function nodata() { return '<p class="nodata">Pas assez de statistiques sur ces équipes pour une prédiction fiable.</p>'; }
+  function lockLine() { return '<p class="lock">🔒 Probabilités réservées aux abonnés Premium</p>'; }
   function stack(p) {
     var v = pct3(p);
     return '<div class="stack" role="img" aria-label="Domicile ' + v[0] + ' %, nul ' + v[1] + ' %, extérieur ' + v[2] + ' %">' +
@@ -123,7 +165,8 @@ footer { color: var(--muted); font-size: 12px; }
   function list() {
     if (!matches.length) return '<p class="empty">' + (mode === "reel" ? "Aucun match aujourd'hui dans les compétitions suivies." : "En attente des matchs…") + "</p>";
     return '<div class="list">' + matches.map(function (m) {
-      return '<button class="card" type="button" data-id="' + m.id + '"><div class="meta"><span>' + esc(m.league) + "</span><span>" + status(m) + "</span></div>" + board(m) + (m.reliable === false ? nodata() : stack(P(m.live))) + "</button>";
+      var body = m.locked ? lockLine() : (m.reliable === false ? nodata() : stack(P(m.live)));
+      return '<button class="card" type="button" data-id="' + m.id + '"><div class="meta"><span>' + esc(m.league) + "</span><span>" + status(m) + "</span></div>" + board(m) + body + "</button>";
     }).join("") + "</div>";
   }
   function detail(m) {
@@ -131,6 +174,7 @@ footer { color: var(--muted); font-size: 12px; }
     var head = '<div class="list"><button class="back" type="button" id="back">← Tous les matchs</button>' +
       '<div class="panel"><div class="meta"><span>' + esc(m.league) + "</span><span>" + status(m) + "</span></div>" + board(m) + "</div>";
     var events = '<div class="panel"><h2>Événements</h2><ul class="events">' + ev + "</ul></div></div>";
+    if (m.locked) return head + '<div class="panel"><h2>Prédiction</h2>' + lockLine() + "</div>" + events;
     if (m.reliable === false) {
       return head + '<div class="panel"><h2>Prédiction</h2>' + nodata() + "</div>" + events;
     }
@@ -146,37 +190,120 @@ footer { color: var(--muted); font-size: 12px; }
       '<div class="panel"><h2>Avant le match</h2>' + stack(P(m.prematch)) + "</div>" + events;
   }
 
+  function lockedPanel(text) { return '<div class="panel"><h2>Réservé aux abonnés</h2><p class="lock">🔒 ' + esc(text) + '</p><p class="nodata">Utilise le bouton « Payer avec Wave » plus haut pour débloquer.</p></div>'; }
+
+  function couponCard(c) {
+    if (c.empty) return '<div class="panel"><div class="coupon-head"><h2>' + esc(c.label) + '</h2><span class="tag">cote ' + c.min + " à " + c.max + '</span></div><p class="nodata">Pas assez de matchs pour composer ce coupon aujourd\'hui.</p></div>';
+    var legs = c.legs.map(function (l) {
+      return '<div class="leg"><div><b>' + esc(l.pick) + "</b><small>" + esc(l.match) + " · " + esc(l.league) + '</small></div><div class="n">' + l.odds.toFixed(2) + "<small>" + pc(l.probability) + "</small></div></div>";
+    }).join("");
+    return '<div class="panel"><div class="coupon-head"><div><h2>' + esc(c.label) + '</h2><span class="tag">cote visée ' + c.min + " à " + c.max + '</span></div><div style="text-align:right"><div class="odds">' + c.total_odds.toFixed(2) + '</div><span class="tag">chance combinée ' + pc(c.probability) + "</span></div></div>" + legs + "</div>";
+  }
+  function couponsView() {
+    if (!premium) return lockedPanel("Les 3 coupons du jour sont réservés aux abonnés Premium.");
+    if (!daily) return '<p class="empty">Chargement des coupons…</p>';
+    if (!daily.coupons.length) return '<p class="empty">Les coupons du jour ne sont pas encore prêts (aucun match exploitable pour le moment).</p>';
+    return '<div class="list"><p class="nodata">Coupons du ' + fmtDate(daily.date) + ", mis à jour chaque jour à 00h.</p>" + daily.coupons.map(couponCard).join("") + '<p class="nodata">' + esc(daily.note) + "</p></div>";
+  }
+  function bigView() {
+    if (!premium) return lockedPanel("L'analyse des grands matchs est réservée aux abonnés Premium.");
+    if (!daily) return '<p class="empty">Chargement des analyses…</p>';
+    if (!daily.big_matches.length) return '<p class="empty">Aucun grand match analysé pour le moment.</p>';
+    return '<div class="list">' + daily.big_matches.map(function (b) {
+      var fav = b.home_win >= b.away_win ? b.home : b.away, pf = Math.max(b.home_win, b.away_win);
+      return '<div class="panel"><div class="meta"><span>' + esc(b.league) + '</span><span>' + (b.analysis_source === "claude" ? "Analyse Claude" : "Analyse du modèle") + "</span></div>" +
+        board({ home: b.home, away: b.away, status: "scheduled", score: [0, 0] }) +
+        stack({ h: b.home_win, d: b.draw, a: b.away_win }) +
+        '<p class="analysis"><b>Favori : ' + esc(fav) + " (" + pc(pf) + " de victoire).</b> " + esc(b.analysis) + "</p>" +
+        '<p class="tag">Score probable ' + esc(b.most_likely_score) + " · +2,5 buts " + pc(b.over_2_5) + " · les deux marquent " + pc(b.btts) + "</p></div>";
+    }).join("") + '<p class="nodata">' + esc(daily.note) + "</p></div>";
+  }
+
   var app = document.getElementById("app");
   function currentId() { var h = location.hash.match(/^#match-(\d+)$/); return h ? +h[1] : 0; }
   function render() {
-    var id = currentId(), m = matches.filter(function (x) { return x.id === id; })[0], sy = window.scrollY;
-    app.innerHTML = m ? detail(m) : list();
+    var id = tab === "matchs" ? currentId() : 0, m = matches.filter(function (x) { return x.id === id; })[0], sy = window.scrollY;
+    app.innerHTML = tab === "coupons" ? couponsView() : tab === "grands" ? bigView() : (m ? detail(m) : list());
     window.scrollTo(0, sy);
     document.getElementById("dot").className = "dot" + (connected ? " on" : "");
     document.getElementById("state").textContent = !connected ? "Reconnexion…" : mode === "reel" ? "Données réelles" : "Simulation (démo)";
+    document.getElementById("plan").textContent = premium ? "Premium" + (expires ? " jusqu'au " + fmtDate(expires) : "") : "Gratuit";
+    document.getElementById("gate").hidden = premium;
+    Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (b) { b.setAttribute("aria-selected", b.getAttribute("data-tab") === tab ? "true" : "false"); });
     var note = "Les probabilités sont des estimations statistiques, jamais des certitudes.";
     if (mode === "demo") note = "Mode démonstration : matchs simulés. " + note;
     else if (mode === "reel" && season) note += " Forces des équipes calculées sur la saison " + season + "/" + (season + 1) + ".";
     else if (mode === "reel") note = "Statistiques des équipes indisponibles pour le moment : aucune prédiction n'est affichée.";
     document.getElementById("notice").textContent = note;
   }
+
+  function loadDaily() {
+    if (!premium) { daily = null; return; }
+    fetch("/daily", { headers: { "x-access-code": code } }).then(function (r) {
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    }).then(function (d) { daily = d; render(); }).catch(function () {});
+  }
+
+  function setPremium(p, exp) {
+    var changed = p !== premium;
+    premium = p; expires = exp || null;
+    if (changed) { daily = null; if (p) loadDaily(); }
+  }
+
   app.addEventListener("click", function (e) {
     var card = e.target.closest(".card");
     if (card) { location.hash = "match-" + card.getAttribute("data-id"); }
     if (e.target.closest("#back")) { location.hash = ""; }
   });
+  document.getElementById("tabs").addEventListener("click", function (e) {
+    var b = e.target.closest(".tab");
+    if (!b) return;
+    tab = b.getAttribute("data-tab");
+    if (location.hash) { location.hash = ""; } else { render(); window.scrollTo(0, 0); }
+  });
   window.addEventListener("hashchange", function () { render(); window.scrollTo(0, 0); });
 
+  document.getElementById("codeform").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var input = document.getElementById("codein"), msg = document.getElementById("codemsg"), v = input.value.trim().toUpperCase();
+    if (!v) return;
+    msg.textContent = "Vérification…";
+    fetch("/access/check", { headers: { "x-access-code": v } }).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.valid) { msg.textContent = "Code invalide ou expiré."; return; }
+      code = v; lsSet("fp_code", v); input.value = ""; msg.textContent = "";
+      setPremium(true, d.expires); render();
+      if (ws) ws.close();
+    }).catch(function () { msg.textContent = "Connexion impossible, réessaie."; });
+  });
+
   function connect() {
-    var ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+    ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws?code=" + encodeURIComponent(code));
     ws.onopen = function () { connected = true; render(); };
     ws.onmessage = function (e) {
       var d = JSON.parse(e.data);
-      if (d.type === "update") { matches = d.matches; mode = d.mode || ""; season = d.season || null; render(); }
+      if (d.type === "update") {
+        matches = d.matches; mode = d.mode || ""; season = d.season || null;
+        setPremium(!!d.premium, d.expires);
+        render();
+      }
     };
     ws.onclose = function () { connected = false; render(); setTimeout(connect, 2000); };
     ws.onerror = function () { ws.close(); };
   }
+
+  fetch("/config").then(function (r) { return r.json(); }).then(function (c) {
+    cfg = c;
+    var pay = document.getElementById("pay");
+    pay.href = c.wave_url || "#";
+    pay.textContent = "Payer avec Wave" + (c.plan_label ? " · " + c.plan_label : "");
+    if (c.whatsapp) {
+      var help = document.getElementById("payhelp");
+      help.innerHTML = 'Après le paiement, envoie ta preuve par <a href="https://wa.me/' + encodeURIComponent(c.whatsapp) + '" rel="noopener" style="color:var(--home)">WhatsApp</a> pour recevoir ton code d\'accès, puis saisis-le ci-dessous.';
+    }
+  }).catch(function () {});
+
+  setInterval(loadDaily, 600000); // reprend les nouveaux coupons après la mise à jour de 00h
   render(); connect();
 })();
 </script>

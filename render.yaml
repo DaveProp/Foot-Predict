@@ -12,3 +12,17 @@ services:
         sync: false
       - key: POLL_SECONDS
         value: "1200"
+      # Accès Premium
+      - key: ACCESS_SECRET   # secret de signature des codes (généré une fois, ne pas le changer)
+        generateValue: true
+      - key: ADMIN_KEY       # clé pour créer des codes : /admin/code?key=...&days=30
+        sync: false
+      - key: WAVE_URL
+        value: "https://pay.wave.com/m/M_ci_fAtDWzspJqhS/c/ci/"
+      - key: PLAN_LABEL
+        value: "Accès Premium"
+      - key: WHATSAPP_NUMBER # numéro qui reçoit les preuves de paiement (format international, ex. 225XXXXXXXXXX)
+        sync: false
+      # Analyses rédigées par Claude (facultatif : sans clé, le modèle rédige une analyse automatique)
+      - key: ANTHROPIC_API_KEY
+        sync: false

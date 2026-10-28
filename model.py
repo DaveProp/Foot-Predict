@@ -66,6 +66,32 @@ def summarize(matrix: list[list[float]], cur_home: int = 0, cur_away: int = 0) -
     }
 
 
+def market_probs(lam_home: float, lam_away: float) -> dict:
+    """Probabilités avant-match de tous les marchés utilisés pour les coupons."""
+    p = {k: 0.0 for k in ("1", "X", "2", "over_1_5", "over_2_5", "under_3_5", "btts_yes", "btts_no")}
+    for i, row in enumerate(score_matrix(lam_home, lam_away)):
+        for j, v in enumerate(row):
+            if i > j:
+                p["1"] += v
+            elif i == j:
+                p["X"] += v
+            else:
+                p["2"] += v
+            total = i + j
+            if total > 1:
+                p["over_1_5"] += v
+            if total > 2:
+                p["over_2_5"] += v
+            if total < 4:
+                p["under_3_5"] += v
+            if i > 0 and j > 0:
+                p["btts_yes"] += v
+            else:
+                p["btts_no"] += v
+    p["1X"], p["X2"], p["12"] = p["1"] + p["X"], p["X"] + p["2"], p["1"] + p["2"]
+    return p
+
+
 def predict_prematch(home: dict, away: dict) -> dict:
     lh, la = expected_goals(home, away)
     result = summarize(score_matrix(lh, la))
