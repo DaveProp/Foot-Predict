@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from pathlib import Path
 
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from model import predict_live, predict_prematch
 
@@ -187,5 +187,20 @@ async def ws_endpoint(ws: WebSocket):
         clients.discard(ws)
 
 
-# L'application web est servie par le même service (doit rester en dernier : c'est la route « par défaut »)
-app.mount("/", StaticFiles(directory=Path(__file__).parent / "static", html=True), name="static")
+# L'application web est servie par le même service
+HERE = Path(__file__).parent
+
+
+@app.get("/")
+def home():
+    return FileResponse(HERE / "index.html")
+
+
+@app.get("/manifest.json")
+def manifest():
+    return FileResponse(HERE / "manifest.json", media_type="application/manifest+json")
+
+
+@app.get("/icon.svg")
+def icon():
+    return FileResponse(HERE / "icon.svg", media_type="image/svg+xml")
