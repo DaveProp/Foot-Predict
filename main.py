@@ -149,9 +149,9 @@ async def real_loop() -> None:
                     matches[m["id"]] = m
                 await broadcast()
             else:
-                print("[real_loop] quota API presque épuisé : pause jusqu'au renouvellement")
+                data_provider.log("[real_loop] quota API presque épuisé : pause jusqu'au renouvellement")
         except Exception as e:
-            print(f"[real_loop] erreur : {e}")
+            data_provider.log(f"[real_loop] erreur : {e}")
         await asyncio.sleep(data_provider.POLL_SECONDS)
 
 
@@ -198,6 +198,22 @@ async def ws_endpoint(ws: WebSocket):
 
 # L'application web est servie par le même service
 HERE = Path(__file__).parent
+
+
+@app.get("/diagnostic")
+def diagnostic():
+    """État du serveur pour comprendre un problème (ne contient jamais la clé API)."""
+    import data_provider
+    return {
+        "mode": mode(),
+        "cle_api_definie": bool(os.getenv("FOOTBALL_API_KEY")),
+        "saison_des_statistiques": data_provider.STRENGTH_SEASON,
+        "requetes_restantes_aujourd_hui": data_provider.remaining_requests,
+        "intervalle_secondes": data_provider.POLL_SECONDS,
+        "championnats_suivis": data_provider.LEAGUES,
+        "nombre_de_matchs_affiches": len(matches),
+        "derniers_messages": data_provider.LOG,
+    }
 
 
 @app.get("/")

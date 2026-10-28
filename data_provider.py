@@ -33,6 +33,15 @@ remaining_requests: int | None = None  # quota restant, lu dans les en-têtes de
 STRENGTH_SEASON: int | None = None  # saison réellement utilisée pour calculer les forces d'équipe
 
 
+LOG: list[str] = []  # derniers messages (visibles sur la page /diagnostic, sans aucune clé)
+
+
+def log(msg: str) -> None:
+    print(msg)
+    LOG.append(datetime.now(timezone.utc).strftime("%H:%M:%S UTC ") + msg)
+    del LOG[:-40]
+
+
 def current_season() -> int:
     if os.getenv("SEASON"):
         return int(os.environ["SEASON"])
@@ -103,7 +112,7 @@ def fetch_strengths() -> dict[str, dict]:
     working = STRENGTH_SEASON
     for league in LEAGUES:
         if quota_low():
-            print("[api-football] quota presque épuisé, arrêt des classements")
+            log("[api-football] quota presque épuisé, arrêt des classements")
             break
         candidates = [working] if working else seasons
         for season in candidates:
@@ -112,12 +121,12 @@ def fetch_strengths() -> dict[str, dict]:
                 working = season
                 break
             except Exception as e:
-                print(f"[api-football] classement ligue {league} saison {season} : {e}")
+                log(f"[api-football] classement ligue {league} saison {season} : {e}")
     if working:
         STRENGTH_SEASON = working
-        print(f"[api-football] forces d'équipe calculées sur la saison {working} ({len(result)} équipes)")
+        log(f"[api-football] forces d'équipe calculées sur la saison {working} ({len(result)} équipes)")
     else:
-        print("[api-football] AUCUN classement récupéré : aucune prédiction fiable ne sera affichée")
+        log("[api-football] AUCUN classement récupéré : aucune prédiction fiable ne sera affichée")
     return result
 
 
@@ -155,7 +164,9 @@ def fetch_matches() -> list[dict]:
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     data = _get(f"/fixtures?date={today}")
     matches = [parse_fixture(f) for f in data["response"]]
+    total = len(matches)
     matches = [m for m in matches if m["league_id"] in LEAGUES]
+    log(f"[api-football] matchs du {today} : {total} reçus, {len(matches)} dans les championnats suivis")
     # Les matchs en cours en premier, puis à venir, puis terminés
     matches.sort(key=lambda m: {"live": 0, "scheduled": 1, "finished": 2}[m["status"]])
     return matches
