@@ -11,4 +11,4 @@ services:
       - key: FOOTBALL_API_KEY
         sync: false
       - key: POLL_SECONDS
-        value: "900"
+        value: "1200"

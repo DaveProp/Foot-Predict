@@ -50,7 +50,7 @@ def build_matches() -> None:
         matches[i] = {
             "id": i, "league": league, "home": h, "away": a,
             "minute": random.randint(0, 5), "score": [0, 0],
-            "red": [0, 0], "status": "live", "events": [],
+            "red": [0, 0], "status": "live", "events": [], "reliable": True,
         }
         refresh(matches[i])
 
@@ -96,8 +96,15 @@ def mode() -> str:
     return "reel" if os.getenv("FOOTBALL_API_KEY") else "demo"
 
 
+def season():
+    if not os.getenv("FOOTBALL_API_KEY"):
+        return None
+    import data_provider
+    return data_provider.STRENGTH_SEASON
+
+
 async def broadcast() -> None:
-    payload = {"type": "update", "mode": mode(), "matches": list(matches.values())}
+    payload = {"type": "update", "mode": mode(), "season": season(), "matches": list(matches.values())}
     for ws in list(clients):
         try:
             await ws.send_json(payload)
@@ -136,6 +143,8 @@ async def real_loop() -> None:
                 for m in fresh:
                     for team in (m["home"], m["away"]):
                         TEAMS[team] = real_strengths.get(team, TEAMS.get(team, DEFAULT_TEAM))
+                    # Prédiction fiable seulement si les deux équipes ont de vraies statistiques
+                    m["reliable"] = m["home"] in real_strengths and m["away"] in real_strengths
                     refresh(m)
                     matches[m["id"]] = m
                 await broadcast()
@@ -180,7 +189,7 @@ async def ws_endpoint(ws: WebSocket):
     await ws.accept()
     clients.add(ws)
     try:
-        await ws.send_json({"type": "update", "mode": mode(), "matches": list(matches.values())})
+        await ws.send_json({"type": "update", "mode": mode(), "season": season(), "matches": list(matches.values())})
         while True:
             await ws.receive_text()
     except WebSocketDisconnect:

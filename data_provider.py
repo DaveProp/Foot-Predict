@@ -2,10 +2,11 @@
 
 La clé est lue dans la variable d'environnement FOOTBALL_API_KEY (jamais écrite dans le code).
 
-ATTENTION aux quotas : l'offre gratuite d'API-Football est limitée (environ 100 requêtes par jour,
-et l'accès aux saisons récentes peut être restreint selon l'offre). C'est pourquoi l'intervalle
-d'actualisation est réglable (POLL_SECONDS, 900 s par défaut) et que la saison est réglable (SEASON).
-Avec une offre payante, mettre par exemple POLL_SECONDS=30.
+Réglages (variables d'environnement, tous optionnels) :
+- LEAGUE_IDS    : liste d'identifiants de ligues séparés par des virgules (voir LEAGUES ci-dessous)
+- POLL_SECONDS  : intervalle d'actualisation des matchs (1200 s par défaut, adapté à l'offre gratuite ~100 requêtes/jour)
+- SEASON        : saison forcée pour les classements (sinon essai automatique de la saison en cours puis des précédentes)
+
 Les cartons rouges ne sont pas récupérés (comptés à 0) pour économiser les requêtes.
 """
 import json
@@ -14,16 +15,22 @@ import urllib.request
 from datetime import datetime, timezone
 
 BASE = "https://v3.football.api-sports.io"
-# Identifiants de ligues API-Football : Premier League, Liga, Serie A, Bundesliga, Ligue 1,
-# Ligue des champions, Ligue 1 ivoirienne
-LEAGUES = [39, 140, 135, 78, 61, 2, 386]
+
+# Championnats suivis par défaut (identifiants API-Football) :
+# Premier League, Liga, Serie A, Bundesliga, Ligue 1, Ligue des champions, Europa League,
+# Conference League, Primeira Liga, Eredivisie, Pro League belge, Süper Lig, MLS,
+# Ligue 1 ivoirienne, Ligue des champions CAF, Coupe de la Confédération CAF
+DEFAULT_LEAGUES = [39, 140, 135, 78, 61, 2, 3, 848, 94, 88, 144, 203, 253, 386, 12, 20]
+LEAGUES = [int(x) for x in os.getenv("LEAGUE_IDS", "").split(",") if x.strip()] or DEFAULT_LEAGUES
+
 SHRINK = 5  # plus il est grand, plus les forces d'équipe sont ramenées vers la moyenne
-POLL_SECONDS = int(os.getenv("POLL_SECONDS", "900"))
+POLL_SECONDS = int(os.getenv("POLL_SECONDS", "1200"))
 
 LIVE_STATUS = {"1H", "2H", "ET", "BT", "P", "LIVE", "INT"}
 FINISHED_STATUS = {"FT", "AET", "PEN"}
 
 remaining_requests: int | None = None  # quota restant, lu dans les en-têtes de réponse
+STRENGTH_SEASON: int | None = None  # saison réellement utilisée pour calculer les forces d'équipe
 
 
 def current_season() -> int:
@@ -75,19 +82,42 @@ def strengths_from_table(table: list[dict]) -> dict[str, dict]:
     return out
 
 
-def fetch_strengths() -> dict[str, dict]:
+def _standings(league: int, season: int) -> dict[str, dict]:
+    data = _get(f"/standings?league={league}&season={season}")
     result: dict[str, dict] = {}
-    season = current_season()
+    for group in data["response"][0]["league"]["standings"]:
+        result.update(strengths_from_table(group))
+    return result
+
+
+def fetch_strengths() -> dict[str, dict]:
+    """Forces d'équipe depuis les classements.
+
+    Essaie d'abord la saison en cours, puis les précédentes (l'offre gratuite refuse souvent les
+    saisons récentes). La première saison qui fonctionne est conservée pour toutes les ligues.
+    """
+    global STRENGTH_SEASON
+    result: dict[str, dict] = {}
+    base = current_season()
+    seasons = [base] if os.getenv("SEASON") else [base, base - 1, base - 2, base - 3]
+    working = STRENGTH_SEASON
     for league in LEAGUES:
         if quota_low():
             print("[api-football] quota presque épuisé, arrêt des classements")
             break
-        try:
-            data = _get(f"/standings?league={league}&season={season}")
-            for group in data["response"][0]["league"]["standings"]:
-                result.update(strengths_from_table(group))
-        except Exception as e:  # une ligue indisponible ne bloque pas les autres
-            print(f"[api-football] classement ligue {league} : {e}")
+        candidates = [working] if working else seasons
+        for season in candidates:
+            try:
+                result.update(_standings(league, season))
+                working = season
+                break
+            except Exception as e:
+                print(f"[api-football] classement ligue {league} saison {season} : {e}")
+    if working:
+        STRENGTH_SEASON = working
+        print(f"[api-football] forces d'équipe calculées sur la saison {working} ({len(result)} équipes)")
+    else:
+        print("[api-football] AUCUN classement récupéré : aucune prédiction fiable ne sera affichée")
     return result
 
 
@@ -102,9 +132,14 @@ def parse_fixture(f: dict) -> dict:
         status, minute = "finished", 90
     else:
         status, minute = "scheduled", 0
+    league = f["league"]["name"]
+    country = f["league"].get("country")
+    if country and country != "World":
+        league = f"{league} ({country})"
     return {
         "id": f["fixture"]["id"],
-        "league": f["league"]["name"],
+        "league_id": f["league"].get("id"),
+        "league": league,
         "home": f["teams"]["home"]["name"],
         "away": f["teams"]["away"]["name"],
         "minute": minute,
@@ -116,10 +151,11 @@ def parse_fixture(f: dict) -> dict:
 
 
 def fetch_matches() -> list[dict]:
-    """Matchs du jour (toutes ligues), au format interne de l'application."""
+    """Matchs du jour des championnats suivis, au format interne de l'application."""
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     data = _get(f"/fixtures?date={today}")
     matches = [parse_fixture(f) for f in data["response"]]
-    # Les matchs en cours en premier
+    matches = [m for m in matches if m["league_id"] in LEAGUES]
+    # Les matchs en cours en premier, puis à venir, puis terminés
     matches.sort(key=lambda m: {"live": 0, "scheduled": 1, "finished": 2}[m["status"]])
     return matches

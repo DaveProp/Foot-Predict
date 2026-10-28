@@ -27,3 +27,14 @@ def test_parse_live_fixture():
     }
     m = parse_fixture(f)
     assert m["status"] == "live" and m["minute"] == 63 and m["score"] == [2, 0]
+
+
+def test_league_label_includes_country_and_id():
+    f = {
+        "fixture": {"id": 9, "status": {"short": "NS", "elapsed": None}},
+        "league": {"id": 39, "name": "Premier League", "country": "England"},
+        "teams": {"home": {"name": "A"}, "away": {"name": "B"}},
+        "goals": {"home": None, "away": None},
+    }
+    m = parse_fixture(f)
+    assert m["league"] == "Premier League (England)" and m["league_id"] == 39 and m["status"] == "scheduled"
