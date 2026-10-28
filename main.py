@@ -279,7 +279,8 @@ def admin_code(key: str = "", plan: str = "", days: int = 30):
     if not 1 <= days <= 366:
         raise HTTPException(400, "days doit être compris entre 1 et 366")
     code, expires = access.make_code(days)
-    return {"code": code, "expires": expires.isoformat(), "days": days}
+    return {"code": code, "expires": expires.isoformat(), "days": days,
+            "secret_fingerprint": access.fingerprint(), "secret_fixed": access.SECRET_IS_FIXED}
 
 
 @app.get("/daily")

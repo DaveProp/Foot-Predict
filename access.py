@@ -18,6 +18,11 @@ def _sig(body: str) -> str:
     return hmac.new(_SECRET.encode(), body.encode(), hashlib.sha256).hexdigest()[:8].upper()
 
 
+def fingerprint() -> str:
+    """Empreinte courte du secret (sans le révéler) pour vérifier que Render utilise le bon ACCESS_SECRET."""
+    return hashlib.sha256(_SECRET.encode()).hexdigest()[:8]
+
+
 def _today() -> date:
     return datetime.now(timezone.utc).date()
 
