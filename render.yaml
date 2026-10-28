@@ -3,7 +3,7 @@ services:
     name: foot-predict
     runtime: python
     plan: free
-    rootDir: backend
+    rootDir: foot-predict/backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
