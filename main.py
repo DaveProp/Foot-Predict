@@ -283,6 +283,17 @@ def admin_code(key: str = "", plan: str = "", days: int = 30):
             "secret_fingerprint": access.fingerprint(), "secret_fixed": access.SECRET_IS_FIXED}
 
 
+@app.get("/admin/rebuild")
+async def admin_rebuild(key: str = ""):
+    """Force la régénération immédiate des coupons et analyses du jour : /admin/rebuild?key=..."""
+    if not ADMIN_KEY or not hmac.compare_digest(key.encode(), ADMIN_KEY.encode()):
+        raise HTTPException(403, "Clé administrateur invalide")
+    daily["date"] = None
+    await ensure_daily()
+    return {"mode": mode(), "date": daily["date"], "matches_used": daily.get("matches_used", 0),
+            "coupons": len(daily["coupons"]), "big_matches": len(daily["big_matches"])}
+
+
 @app.get("/daily")
 def get_daily(x_access_code: str = Header(default="")):
     if access.check_code(x_access_code) is None:
