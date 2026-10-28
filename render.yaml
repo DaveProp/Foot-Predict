@@ -15,12 +15,10 @@ services:
       # Accès Premium
       - key: ACCESS_SECRET   # secret de signature des codes (généré une fois, ne pas le changer)
         generateValue: true
-      - key: ADMIN_KEY       # clé pour créer des codes : /admin/code?key=...&days=30
+      - key: ADMIN_KEY       # clé pour créer des codes : /admin/code?key=...&plan=semaine (ou mois)
         sync: false
-      - key: WAVE_URL
+      - key: WAVE_URL        # lien Wave de base ; les montants 3800 et 12000 sont ajoutés par l'application
         value: "https://pay.wave.com/m/M_ci_fAtDWzspJqhS/c/ci/"
-      - key: PLAN_LABEL
-        value: "Accès Premium"
       - key: WHATSAPP_NUMBER # numéro qui reçoit les preuves de paiement (format international, ex. 225XXXXXXXXXX)
         sync: false
       # Analyses rédigées par Claude (facultatif : sans clé, le modèle rédige une analyse automatique)

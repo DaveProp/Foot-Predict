@@ -75,6 +75,10 @@ h2 { font-family: var(--display); font-size: 18px; letter-spacing: .06em; text-t
 .lock { color: var(--draw); font-size: 13px; font-weight: 600; margin: 0; }
 .empty { color: var(--muted); text-align: center; padding: 32px 8px; }
 .cta { display: block; text-align: center; background: var(--home); color: #0d261c; font-weight: 700; font-size: 17px; padding: 14px; border-radius: 12px; text-decoration: none; }
+.plans { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.plans .cta { display: flex; flex-direction: column; gap: 2px; padding: 12px 8px; }
+.plans .cta b { font-family: var(--display); font-size: 26px; line-height: 1.1; }
+.plans .cta small { font-size: 12px; font-weight: 600; }
 .codeform { display: flex; gap: 8px; }
 .codeform input { flex: 1; min-width: 0; background: var(--pitch); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; text-transform: uppercase; }
 .btn { background: var(--pitch); border: 1px solid var(--muted); border-radius: 10px; padding: 10px 16px; font-weight: 600; cursor: pointer; }
@@ -101,7 +105,7 @@ footer { color: var(--muted); font-size: 12px; }
   <section class="panel gate" id="gate" hidden>
     <h2 id="gatetitle">Accès Premium</h2>
     <p class="nodata">Débloque les probabilités détaillées, l'analyse des grands matchs et les 3 coupons du jour (confiance, équilibré, risque), mis à jour chaque jour à 00h.</p>
-    <a class="cta" id="pay" href="#" rel="noopener">Payer avec Wave</a>
+    <div class="plans" id="plans"></div>
     <p class="nodata" id="payhelp">Après le paiement, envoie ta preuve pour recevoir ton code d'accès, puis saisis-le ci-dessous.</p>
     <form class="codeform" id="codeform" autocomplete="off">
       <input id="codein" type="text" placeholder="Code d'accès (FP-…)" aria-label="Code d'accès" autocapitalize="characters" spellcheck="false">
@@ -190,7 +194,7 @@ footer { color: var(--muted); font-size: 12px; }
       '<div class="panel"><h2>Avant le match</h2>' + stack(P(m.prematch)) + "</div>" + events;
   }
 
-  function lockedPanel(text) { return '<div class="panel"><h2>Réservé aux abonnés</h2><p class="lock">🔒 ' + esc(text) + '</p><p class="nodata">Utilise le bouton « Payer avec Wave » plus haut pour débloquer.</p></div>'; }
+  function lockedPanel(text) { return '<div class="panel"><h2>Réservé aux abonnés</h2><p class="lock">🔒 ' + esc(text) + '</p><p class="nodata">Choisis une formule (1 semaine ou 1 mois) plus haut pour débloquer.</p></div>'; }
 
   function couponCard(c) {
     if (c.empty) return '<div class="panel"><div class="coupon-head"><h2>' + esc(c.label) + '</h2><span class="tag">cote ' + c.min + " à " + c.max + '</span></div><p class="nodata">Pas assez de matchs pour composer ce coupon aujourd\'hui.</p></div>';
@@ -294,9 +298,9 @@ footer { color: var(--muted); font-size: 12px; }
 
   fetch("/config").then(function (r) { return r.json(); }).then(function (c) {
     cfg = c;
-    var pay = document.getElementById("pay");
-    pay.href = c.wave_url || "#";
-    pay.textContent = "Payer avec Wave" + (c.plan_label ? " · " + c.plan_label : "");
+    document.getElementById("plans").innerHTML = (c.plans || []).map(function (p) {
+      return '<a class="cta" href="' + esc(p.url) + '" rel="noopener"><span>' + esc(p.label) + '</span><b>' + String(p.amount).replace(/\B(?=(\d{3})+(?!\d))/g, " ") + ' FCFA</b><small>Payer avec Wave</small></a>';
+    }).join("");
     if (c.whatsapp) {
       var help = document.getElementById("payhelp");
       help.innerHTML = 'Après le paiement, envoie ta preuve par <a href="https://wa.me/' + encodeURIComponent(c.whatsapp) + '" rel="noopener" style="color:var(--home)">WhatsApp</a> pour recevoir ton code d\'accès, puis saisis-le ci-dessous.';

@@ -23,8 +23,13 @@ import access
 import coupons
 from model import expected_goals, predict_live, predict_prematch
 
-WAVE_URL = os.getenv("WAVE_URL", "https://pay.wave.com/m/M_ci_fAtDWzspJqhS/c/ci/")
-PLAN_LABEL = os.getenv("PLAN_LABEL", "Accès Premium")
+WAVE_BASE = os.getenv("WAVE_URL", "https://pay.wave.com/m/M_ci_fAtDWzspJqhS/c/ci/")
+# Formules d'abonnement : le montant est pré-rempli dans le lien Wave
+PLANS = [
+    {"key": "semaine", "label": "1 semaine", "days": 7, "amount": 3800, "url": f"{WAVE_BASE}?amount=3800"},
+    {"key": "mois", "label": "1 mois", "days": 30, "amount": 12000, "url": f"{WAVE_BASE}?amount=12000"},
+]
+PLAN_DAYS = {p["key"]: p["days"] for p in PLANS}
 WHATSAPP_NUMBER = "".join(ch for ch in os.getenv("WHATSAPP_NUMBER", "") if ch.isdigit())
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")
 
@@ -253,7 +258,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 @app.get("/config")
 def get_config():
-    return {"wave_url": WAVE_URL, "plan_label": PLAN_LABEL, "whatsapp": WHATSAPP_NUMBER}
+    return {"plans": PLANS, "whatsapp": WHATSAPP_NUMBER}
 
 
 @app.get("/access/check")
@@ -263,10 +268,14 @@ def access_check(x_access_code: str = Header(default="")):
 
 
 @app.get("/admin/code")
-def admin_code(key: str = "", days: int = 30):
-    """Crée un code d'accès après réception du paiement Wave. Exemple : /admin/code?key=...&days=30"""
+def admin_code(key: str = "", plan: str = "", days: int = 30):
+    """Crée un code après réception du paiement Wave. Exemples : /admin/code?key=...&plan=semaine ou &plan=mois"""
     if not ADMIN_KEY or not hmac.compare_digest(key.encode(), ADMIN_KEY.encode()):
         raise HTTPException(403, "Clé administrateur invalide")
+    if plan:
+        if plan not in PLAN_DAYS:
+            raise HTTPException(400, "plan doit être « semaine » ou « mois »")
+        days = PLAN_DAYS[plan]
     if not 1 <= days <= 366:
         raise HTTPException(400, "days doit être compris entre 1 et 366")
     code, expires = access.make_code(days)
