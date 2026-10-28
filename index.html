@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Foot Predict</title>
+<meta name="theme-color" content="#0d261c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+:root {
+  --pitch: #0d261c; --pitch-2: #143427; --line: #2a5340; --chalk: #eef3ea; --muted: #9fb8a9;
+  --home: #7fd990; --draw: #d8c966; --away: #ee8266; --focus: #ffffff;
+  --display: "Barlow Condensed", "Arial Narrow", Impact, sans-serif;
+  --body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--pitch); }
+body {
+  color: var(--chalk); font-family: var(--body); font-size: 15px; line-height: 1.45;
+  padding-top: max(16px, env(safe-area-inset-top, 0px)); padding-bottom: max(40px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+button { font: inherit; color: inherit; }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+h1 { font-family: var(--display); font-size: 34px; letter-spacing: .02em; text-transform: uppercase; margin: 0; line-height: 1; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--away); }
+.dot.on { background: var(--home); animation: pulse 1.6s ease-in-out infinite; }
+.notice { color: var(--muted); font-size: 13px; margin: 0; }
+.list { display: flex; flex-direction: column; gap: 12px; }
+.card { width: 100%; text-align: left; background: var(--pitch-2); border: 1px solid var(--line); border-radius: 14px; padding: 14px; cursor: pointer; display: flex; flex-direction: column; gap: 10px; }
+.card:hover { border-color: var(--muted); }
+.meta { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.live-min { color: var(--chalk); }
+.board { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
+.team { font-family: var(--display); font-size: 21px; font-weight: 600; line-height: 1.1; min-width: 0; overflow-wrap: anywhere; }
+.team.away { text-align: right; }
+.score { font-family: var(--display); font-size: 40px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; padding: 2px 12px; border-radius: 8px; }
+.score.soon { font-size: 22px; color: var(--muted); }
+.stack { display: flex; height: 12px; border-radius: 6px; overflow: hidden; gap: 2px; }
+.stack span { display: block; min-width: 2px; transition: width .6s ease; }
+.h { background: var(--home); } .d { background: var(--draw); } .a { background: var(--away); }
+.legend { display: grid; grid-template-columns: 1fr auto 1fr; font-size: 13px; font-variant-numeric: tabular-nums; }
+.legend b { font-family: var(--display); font-size: 20px; font-weight: 700; }
+.legend .c { text-align: center; padding: 0 12px; } .legend .r { text-align: right; }
+.legend small { display: block; color: var(--muted); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+.back { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 4px 0; font-weight: 600; text-align: left; }
+.panel { background: var(--pitch-2); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+h2 { font-family: var(--display); font-size: 18px; letter-spacing: .06em; text-transform: uppercase; margin: 0; color: var(--muted); font-weight: 600; }
+.markets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.market { border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+.market small { color: var(--muted); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; display: block; }
+.market b { font-family: var(--display); font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.events { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.events li { display: flex; gap: 10px; font-size: 14px; }
+.events .m { color: var(--muted); width: 36px; font-variant-numeric: tabular-nums; }
+.chart { width: 100%; height: auto; display: block; }
+.chart text { fill: var(--muted); font-family: var(--body); font-size: 9px; }
+.key { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.key i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.empty { color: var(--muted); text-align: center; padding: 32px 8px; }
+footer { color: var(--muted); font-size: 12px; }
+@keyframes pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .dot.on { animation: none; } .stack span { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Foot Predict</h1>
+    <span class="pill"><span class="dot" id="dot" aria-hidden="true"></span><span id="state">Connexion…</span></span>
+  </header>
+  <p class="notice" id="notice">Les probabilités sont des estimations statistiques, jamais des certitudes.</p>
+  <main id="app"><p class="empty">Connexion au serveur…</p></main>
+  <footer>Modèle : buts attendus par équipe (loi de Poisson, correction Dixon-Coles), recalculés à chaque mise à jour du match.</footer>
+</div>
+
+<script>
+(function () {
+  var matches = [], mode = "", connected = false;
+
+  function P(l) { return { h: l.home_win, d: l.draw, a: l.away_win, o25: l.over_2_5, btts: l.btts, score: l.most_likely_score, xh: l.xg_home, xa: l.xg_away }; }
+  function pct3(p) { var a = Math.round(p.h * 100), b = Math.round(p.d * 100); return [a, b, Math.max(0, 100 - a - b)]; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  function stack(p) {
+    var v = pct3(p);
+    return '<div class="stack" role="img" aria-label="Domicile ' + v[0] + ' %, nul ' + v[1] + ' %, extérieur ' + v[2] + ' %">' +
+      '<span class="h" style="width:' + v[0] + '%"></span><span class="d" style="width:' + v[1] + '%"></span><span class="a" style="width:' + v[2] + '%"></span></div>' +
+      '<div class="legend"><div><b>' + v[0] + ' %</b><small>Domicile</small></div><div class="c"><b>' + v[1] + ' %</b><small>Nul</small></div><div class="r"><b>' + v[2] + ' %</b><small>Extérieur</small></div></div>';
+  }
+  function status(m) {
+    if (m.status === "live") return '<span class="live-min">' + m.minute + "'</span>";
+    return m.status === "finished" ? "Terminé" : "À venir";
+  }
+  function board(m) {
+    var mid = m.status === "scheduled" ? '<div class="score soon">vs</div>' : '<div class="score">' + m.score[0] + " - " + m.score[1] + "</div>";
+    return '<div class="board"><div class="team">' + esc(m.home) + "</div>" + mid + '<div class="team away">' + esc(m.away) + "</div></div>";
+  }
+  function chart(m) {
+    var H = m.history || [], W = 320, HT = 120, x = function (mn) { return 24 + Math.min(90, mn) / 90 * 286; }, y = function (p) { return 10 + (1 - p) * 90; };
+    var out = '<svg class="chart" viewBox="0 0 ' + W + " " + HT + '" role="img" aria-label="Évolution des probabilités">';
+    [0, 0.5, 1].forEach(function (p) { out += '<line x1="24" x2="310" y1="' + y(p) + '" y2="' + y(p) + '" stroke="var(--line)" stroke-width="1"/><text x="20" y="' + (y(p) + 3) + '" text-anchor="end">' + Math.round(p * 100) + "</text>"; });
+    [0, 45, 90].forEach(function (mn) { out += '<text x="' + x(mn) + '" y="116" text-anchor="middle">' + mn + "'</text>"; });
+    [["var(--home)", 1], ["var(--draw)", 2], ["var(--away)", 3]].forEach(function (s) {
+      if (H.length < 2) return;
+      var pts = H.map(function (r) { return x(r[0]).toFixed(1) + "," + y(r[s[1]]).toFixed(1); }).join(" ");
+      out += '<polyline points="' + pts + '" fill="none" stroke="' + s[0] + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+    });
+    return out + "</svg>";
+  }
+
+  function list() {
+    if (!matches.length) return '<p class="empty">' + (mode === "reel" ? "Aucun match aujourd'hui dans les compétitions suivies." : "En attente des matchs…") + "</p>";
+    return '<div class="list">' + matches.map(function (m) {
+      return '<button class="card" type="button" data-id="' + m.id + '"><div class="meta"><span>' + esc(m.league) + "</span><span>" + status(m) + "</span></div>" + board(m) + stack(P(m.live)) + "</button>";
+    }).join("") + "</div>";
+  }
+  function detail(m) {
+    var L = P(m.live), ev = (m.events || []).length ? m.events.slice().reverse().map(function (e) { return '<li><span class="m">' + e.minute + "'</span><span>" + esc(e.type.charAt(0).toUpperCase() + e.type.slice(1)) + " · " + esc(e.team) + "</span></li>"; }).join("") : '<li><span style="color:var(--muted)">Aucun événement enregistré.</span></li>';
+    return '<div class="list"><button class="back" type="button" id="back">← Tous les matchs</button>' +
+      '<div class="panel"><div class="meta"><span>' + esc(m.league) + "</span><span>" + status(m) + "</span></div>" + board(m) + "</div>" +
+      '<div class="panel"><h2>' + (m.status === "live" ? "Probabilités en direct" : m.status === "finished" ? "Dernières probabilités" : "Probabilités avant-match") + "</h2>" + stack(L) + "</div>" +
+      '<div class="panel"><h2>Autres marchés</h2><div class="markets">' +
+      '<div class="market"><small>Plus de 2,5 buts</small><b>' + Math.round(L.o25 * 100) + " %</b></div>" +
+      '<div class="market"><small>Les deux marquent</small><b>' + Math.round(L.btts * 100) + " %</b></div>" +
+      '<div class="market"><small>Score final probable</small><b>' + esc(L.score) + "</b></div>" +
+      '<div class="market"><small>Buts attendus restants</small><b>' + L.xh.toFixed(2) + " – " + L.xa.toFixed(2) + "</b></div></div></div>" +
+      (m.status === "live" ? '<div class="panel"><h2>Évolution minute par minute</h2>' + chart(m) + '<div class="key"><span><i class="h"></i>Domicile</span><span><i class="d"></i>Nul</span><span><i class="a"></i>Extérieur</span></div></div>' : "") +
+      '<div class="panel"><h2>Avant le match</h2>' + stack(P(m.prematch)) + "</div>" +
+      '<div class="panel"><h2>Événements</h2><ul class="events">' + ev + "</ul></div></div>";
+  }
+
+  var app = document.getElementById("app");
+  function currentId() { var h = location.hash.match(/^#match-(\d+)$/); return h ? +h[1] : 0; }
+  function render() {
+    var id = currentId(), m = matches.filter(function (x) { return x.id === id; })[0], sy = window.scrollY;
+    app.innerHTML = m ? detail(m) : list();
+    window.scrollTo(0, sy);
+    document.getElementById("dot").className = "dot" + (connected ? " on" : "");
+    document.getElementById("state").textContent = !connected ? "Reconnexion…" : mode === "reel" ? "Données réelles" : "Simulation (démo)";
+    document.getElementById("notice").textContent = mode === "demo"
+      ? "Mode démonstration : matchs simulés. Les probabilités sont des estimations statistiques, jamais des certitudes."
+      : "Les probabilités sont des estimations statistiques, jamais des certitudes.";
+  }
+  app.addEventListener("click", function (e) {
+    var card = e.target.closest(".card");
+    if (card) { location.hash = "match-" + card.getAttribute("data-id"); }
+    if (e.target.closest("#back")) { location.hash = ""; }
+  });
+  window.addEventListener("hashchange", function () { render(); window.scrollTo(0, 0); });
+
+  function connect() {
+    var ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws");
+    ws.onopen = function () { connected = true; render(); };
+    ws.onmessage = function (e) {
+      var d = JSON.parse(e.data);
+      if (d.type === "update") { matches = d.matches; mode = d.mode || ""; render(); }
+    };
+    ws.onclose = function () { connected = false; render(); setTimeout(connect, 2000); };
+    ws.onerror = function () { ws.close(); };
+  }
+  render(); connect();
+})();
+</script>
+</body>
+</html>

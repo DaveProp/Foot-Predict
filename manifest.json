@@ -1,0 +1,12 @@
+{
+  "name": "Foot Predict",
+  "short_name": "Foot Predict",
+  "description": "Prédictions de football en temps réel",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0d261c",
+  "theme_color": "#0d261c",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

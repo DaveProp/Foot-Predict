@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: foot-predict
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.3"
+      - key: FOOTBALL_API_KEY
+        sync: false   # tu saisis la clé toi-même sur le site Render (elle n'est jamais dans le code)
+      - key: POLL_SECONDS
+        value: "900"
