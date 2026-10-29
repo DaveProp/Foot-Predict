@@ -181,7 +181,9 @@ async def ensure_daily() -> None:
     global daily, previous
     if daily["date"] == today_str() and not daily.get("stale") and (daily["coupons"] or time.time() - daily["ts"] < 1800):
         return
-    statuses = {"scheduled"} if USE_REAL else {"scheduled", "live", "finished"}
+    # Tous les matchs du jour comptent, même déjà commencés : les coupons ne dépendent que des statistiques des équipes
+    # (pas du score), donc refaits après un redémarrage en soirée, ils redonnent les mêmes que ceux du matin.
+    statuses = {"scheduled", "live", "finished"}
     # Les coupons du jour ne portent que sur les matchs du jour (pas ceux de demain)
     snapshot = [dict(m) for m in matches.values() if not m.get("kickoff") or m["kickoff"][:10] == today_str()]
     try:
