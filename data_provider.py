@@ -212,6 +212,7 @@ def parse_match(f: dict, now: datetime | None = None) -> dict | None:
         "status": status,
         "events": [],
         "kickoff": f.get("utcDate"),
+        "paused": api_status in PAUSED_STATUS,
     }
 
 

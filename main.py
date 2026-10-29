@@ -237,6 +237,32 @@ def attach_form(m: dict) -> None:
         m.pop("form", None)
 
 
+phase: dict[int, dict] = {}  # moments réellement observés : début de chaque mi-temps
+
+
+def real_minute(m: dict, old: dict | None) -> None:
+    """Minute réelle à partir des changements de statut vus pendant nos actualisations (précision ~1 min).
+    L'API gratuite ne donne pas la minute et le coup d'envoi réel diffère souvent de l'heure prévue.
+    Sans observation fiable (ex. redémarrage en plein match), on garde l'estimation faite depuis l'heure prévue."""
+    now = time.time()
+    ph = phase.setdefault(m["id"], {})
+    prev = old["status"] if old else None
+    if m["status"] != "live":
+        return
+    if m.get("paused"):
+        ph["ht"] = True
+        return
+    if prev == "scheduled" and "h1" not in ph:
+        ph["h1"] = now
+    if ph.get("ht") and "h2" not in ph:
+        if old and old.get("paused"):
+            ph["h2"] = now
+    if "h2" in ph:
+        m["minute"] = min(90, 46 + int((now - ph["h2"]) / 60))
+    elif "h1" in ph and not ph.get("ht"):
+        m["minute"] = min(45, 1 + int((now - ph["h1"]) / 60))
+
+
 def apply_matches(fresh: list[dict]) -> None:
     """Met à jour la liste des matchs d'un seul bloc (pas de liste vide visible entre deux actualisations)."""
     new: dict[int, dict] = {}
@@ -245,6 +271,7 @@ def apply_matches(fresh: list[dict]) -> None:
             TEAMS[team] = real_strengths.get(team, TEAMS.get(team, DEFAULT_TEAM))
         # Prédiction fiable seulement si les deux équipes ont de vraies statistiques
         m["reliable"] = m["home"] in real_strengths and m["away"] in real_strengths
+        real_minute(m, matches.get(m["id"]))
         refresh(m)
         attach_form(m)
         new[m["id"]] = m
