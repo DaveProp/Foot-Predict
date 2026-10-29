@@ -304,6 +304,17 @@ async def admin_rebuild(key: str = ""):
             "coupons": len(daily["coupons"]), "big_matches": len(daily["big_matches"])}
 
 
+@app.get("/admin/diag")
+async def admin_diag(key: str = ""):
+    """Teste la clé football-data.org et montre la réponse brute : /admin/diag?key=..."""
+    if not ADMIN_KEY or not hmac.compare_digest(key.encode(), ADMIN_KEY.encode()):
+        raise HTTPException(403, "Clé administrateur invalide")
+    if not USE_REAL:
+        return {"mode": "demo", "detail": "FOOTBALL_DATA_KEY n'est pas défini"}
+    import data_provider
+    return await asyncio.to_thread(data_provider.diagnose)
+
+
 @app.get("/daily")
 def get_daily(x_access_code: str = Header(default="")):
     if access.check_code(x_access_code) is None:

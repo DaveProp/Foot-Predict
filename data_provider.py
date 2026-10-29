@@ -52,7 +52,7 @@ def quota_low() -> bool:
 
 
 def _key() -> str:
-    key = os.getenv("FOOTBALL_DATA_KEY", "")
+    key = os.getenv("FOOTBALL_DATA_KEY", "").strip().strip("\"'").strip()  # tolère espaces et guillemets collés par erreur
     if not key:
         raise FatalError("clé football-data.org absente (variable FOOTBALL_DATA_KEY)")
     return key
@@ -83,6 +83,26 @@ def _get(path: str, _retry: bool = True) -> dict:
     if avail is not None and avail.isdigit() and int(avail) <= 0:
         time.sleep(62)
     return data
+
+
+def diagnose() -> dict:
+    """Test simple de la clé (sans la révéler) : renvoie la réponse brute de football-data.org."""
+    raw = os.getenv("FOOTBALL_DATA_KEY", "")
+    info = {"key_length": len(raw.strip()), "has_spaces_or_quotes": raw != raw.strip().strip("\"'").strip() or " " in raw.strip(),
+            "key_start": raw.strip()[:3] + "…" if raw.strip() else ""}
+    try:
+        req = urllib.request.Request(BASE + "/competitions/PL", headers={"X-Auth-Token": _key()})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            info.update(http_status=r.status, ok=True)
+    except urllib.error.HTTPError as e:
+        try:
+            msg = json.load(e).get("message", "")
+        except Exception:
+            msg = ""
+        info.update(http_status=e.code, ok=False, api_message=msg)
+    except Exception as e:
+        info.update(ok=False, error=str(e))
+    return info
 
 
 def team_name(t: dict) -> str:
