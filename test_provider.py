@@ -66,3 +66,33 @@ def test_halftime_and_finished():
 
 def test_postponed_match_is_ignored():
     assert parse_match(match("POSTPONED")) is None
+
+
+def fin(i, day, home, away, gh, ga):
+    return {"id": i, "utcDate": f"2026-10-{day:02d}T18:00:00Z", "status": "FINISHED",
+            "competition": {"code": "PL"}, "homeTeam": {"name": home, "shortName": home},
+            "awayTeam": {"name": away, "shortName": away}, "score": {"fullTime": {"home": gh, "away": ga}}}
+
+
+def test_form_keeps_last_six_oldest_first():
+    from data_provider import form_from_matches, form_summary
+    games = [fin(i, i, "A", "B" if i % 2 else "C", 2, 1) for i in range(1, 9)]  # A gagne 8 fois à domicile
+    form = form_from_matches(games)
+    assert [g["d"] for g in form["A"]] == [f"2026-10-{d:02d}" for d in range(3, 9)]
+    assert all(g["r"] == "V" and g["home"] for g in form["A"])
+    s = form_summary(form["A"])
+    assert (s["n"], s["w"], s["pts"], s["gf"], s["ga"]) == (6, 6, 18, 12, 6)
+
+
+def test_form_result_is_from_each_team_point_of_view():
+    from data_provider import form_from_matches
+    form = form_from_matches([fin(1, 5, "A", "B", 0, 3), fin(1, 5, "A", "B", 0, 3)])  # doublon ignoré
+    assert [g["r"] for g in form["A"]] == ["D"] and [g["r"] for g in form["B"]] == ["V"]
+    assert form["B"][0]["home"] is False and form["B"][0]["gf"] == 3
+
+
+def test_unfinished_or_unscored_matches_are_ignored_in_form():
+    from data_provider import form_from_matches
+    live = fin(2, 6, "A", "B", None, None)
+    sched = dict(fin(3, 7, "A", "B", 1, 0), status="TIMED")
+    assert form_from_matches([live, sched]) == {}

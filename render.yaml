@@ -11,7 +11,7 @@ services:
       - key: FOOTBALL_DATA_KEY   # clé gratuite de football-data.org
         sync: false
       - key: POLL_SECONDS
-        value: "1200"
+        value: "300"
       # Accès Premium
       - key: ACCESS_SECRET   # secret de signature des codes : à coller dans Render, ne jamais le changer ni le partager
         sync: false

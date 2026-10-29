@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Foot Predict</title>
-<meta name="theme-color" content="#0d261c">
+<meta name="theme-color" content="#0b1220">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json">
@@ -13,8 +13,8 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
 <style>
 :root {
-  --pitch: #0d261c; --pitch-2: #143427; --line: #2a5340; --chalk: #eef3ea; --muted: #9fb8a9;
-  --home: #7fd990; --draw: #d8c966; --away: #ee8266; --focus: #ffffff;
+  --pitch: #0b1220; --pitch-2: #131c2e; --line: #243049; --chalk: #eaf0fa; --muted: #8fa0bd;
+  --home: #3ea6ff; --draw: #f5c542; --away: #ff6b57; --focus: #ffffff;
   --display: "Barlow Condensed", "Arial Narrow", Impact, sans-serif;
   --body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme: dark;
@@ -37,9 +37,11 @@ h1 { font-family: var(--display); font-size: 34px; letter-spacing: .02em; text-t
 .dot.on { background: var(--home); animation: pulse 1.6s ease-in-out infinite; }
 .plan { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--draw); }
 .notice { color: var(--muted); font-size: 13px; margin: 0; }
-.tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.tab { background: var(--pitch-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 4px; font-weight: 600; font-size: 14px; cursor: pointer; text-align: center; }
-.tab[aria-selected="true"] { background: var(--home); color: #0d261c; border-color: var(--home); }
+.tabs { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -2px; padding: 2px; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { background: var(--pitch-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; font-weight: 600; font-size: 14px; cursor: pointer; text-align: center; white-space: nowrap; flex: 0 0 auto; }
+.badge { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: var(--away); color: #04130b; font-size: 12px; line-height: 18px; }
+.tab[aria-selected="true"] { background: var(--home); color: #04130b; border-color: var(--home); }
 .list { display: flex; flex-direction: column; gap: 12px; }
 .card { width: 100%; text-align: left; background: var(--pitch-2); border: 1px solid var(--line); border-radius: 14px; padding: 14px; cursor: pointer; display: flex; flex-direction: column; gap: 10px; }
 .card:hover { border-color: var(--muted); }
@@ -74,10 +76,10 @@ h2 { font-family: var(--display); font-size: 18px; letter-spacing: .06em; text-t
 .nodata { color: var(--muted); font-size: 13px; margin: 0; }
 .lock { color: var(--draw); font-size: 13px; font-weight: 600; margin: 0; }
 .empty { color: var(--muted); text-align: center; padding: 32px 8px; }
-.cta { display: block; text-align: center; background: var(--home); color: #0d261c; font-weight: 700; font-size: 17px; padding: 14px; border-radius: 12px; text-decoration: none; }
+.cta { display: block; text-align: center; background: var(--home); color: #04130b; font-weight: 700; font-size: 17px; padding: 14px; border-radius: 12px; text-decoration: none; }
 .plans { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 .plans .cta { display: flex; flex-direction: column; gap: 2px; padding: 12px 8px; }
-.plans .cta b { font-family: var(--display); font-size: 26px; line-height: 1.1; }
+.plans .cta b { font-family: var(--display); font-size: 22px; line-height: 1.1; white-space: nowrap; }
 .plans .cta small { font-size: 12px; font-weight: 600; }
 .codeform { display: flex; gap: 8px; }
 .codeform input { flex: 1; min-width: 0; background: var(--pitch); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; text-transform: uppercase; }
@@ -89,6 +91,29 @@ h2 { font-family: var(--display); font-size: 18px; letter-spacing: .06em; text-t
 .leg .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .analysis { margin: 0; font-size: 14px; }
 .tag { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.dayhead { margin: 0; font-family: var(--display); font-size: 20px; letter-spacing: .04em; text-transform: uppercase; }
+.grp { background: var(--pitch-2); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.lg { margin: 0; padding: 9px 14px; font-family: var(--display); font-size: 16px; letter-spacing: .06em; text-transform: uppercase; background: #0a1020; color: var(--muted); font-weight: 600; display: flex; justify-content: space-between; gap: 8px; }
+.row { width: 100%; text-align: left; background: none; border: 0; border-top: 1px solid var(--line); padding: 12px 14px; cursor: pointer; display: grid; grid-template-columns: 64px 1fr auto; grid-template-areas: "when teams sc" "odds odds odds"; gap: 8px 12px; align-items: center; }
+.row:hover { background: #1a2640; }
+.when { grid-area: when; font-weight: 700; font-size: 17px; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.when small { display: block; font-weight: 600; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.when.live { color: var(--away); }
+.teams { grid-area: teams; display: flex; flex-direction: column; gap: 3px; min-width: 0; font-weight: 600; }
+.teams span { overflow-wrap: anywhere; }
+.sc { grid-area: sc; display: flex; flex-direction: column; gap: 3px; text-align: right; font-family: var(--display); font-size: 20px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.odds { grid-area: odds; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.c3 { display: flex; justify-content: space-between; align-items: center; background: var(--pitch); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+.c3 i { font-style: normal; color: var(--muted); font-weight: 600; }
+.c3 b { font-family: var(--display); font-size: 18px; font-variant-numeric: tabular-nums; }
+.c3.top { border-color: var(--home); } .c3.top b { color: var(--home); }
+.lockrow { grid-column: 1 / -1; color: var(--muted); font-size: 12px; font-weight: 600; text-align: center; padding: 6px; border: 1px dashed var(--line); border-radius: 8px; }
+.formside { display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
+.formhead { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.chips { display: inline-flex; gap: 4px; }
+.chip { width: 24px; height: 24px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; color: #04130b; }
+.chip.V { background: var(--home); } .chip.N { background: var(--draw); } .chip.D { background: var(--away); }
+.events li b { margin-left: auto; font-variant-numeric: tabular-nums; }
 footer { color: var(--muted); font-size: 12px; }
 @keyframes pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .dot.on { animation: none; } .stack span { transition: none; } }
@@ -115,7 +140,9 @@ footer { color: var(--muted); font-size: 12px; }
   </section>
 
   <nav class="tabs" role="tablist" id="tabs">
-    <button class="tab" type="button" role="tab" data-tab="matchs">Matchs</button>
+    <button class="tab" type="button" role="tab" data-tab="direct">Direct</button>
+    <button class="tab" type="button" role="tab" data-tab="today">Aujourd'hui</button>
+    <button class="tab" type="button" role="tab" data-tab="tomorrow">Demain</button>
     <button class="tab" type="button" role="tab" data-tab="coupons">Coupons du jour</button>
     <button class="tab" type="button" role="tab" data-tab="grands">Grands matchs</button>
   </nav>
@@ -127,7 +154,7 @@ footer { color: var(--muted); font-size: 12px; }
 <script>
 (function () {
   var matches = [], mode = "", season = null, connected = false, dataError = null;
-  var cfg = {}, code = lsGet("fp_code"), premium = false, expires = null, tab = "matchs", daily = null, ws = null;
+  var cfg = {}, code = lsGet("fp_code"), premium = false, expires = null, tab = "today", daily = null, ws = null;
 
   function lsGet(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
@@ -166,17 +193,77 @@ footer { color: var(--muted); font-size: 12px; }
     return out + "</svg>";
   }
 
-  function list() {
-    if (!matches.length) return '<p class="empty">' + (mode === "reel" ? "Aucun match aujourd'hui dans les compétitions suivies." : "En attente des matchs…") + "</p>";
-    return '<div class="list">' + matches.map(function (m) {
-      var body = m.locked ? lockLine() : (m.reliable === false ? nodata() : stack(P(m.live)));
-      return '<button class="card" type="button" data-id="' + m.id + '"><div class="meta"><span>' + esc(m.league) + "</span><span>" + status(m) + "</span></div>" + board(m) + body + "</button>";
+  var DAYS = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
+  var MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function kd(m) { if (!m.kickoff) return null; var d = new Date(m.kickoff); return isNaN(d.getTime()) ? null : d; }
+  function hhmm(d) { return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
+  function dayLabel(d) { return DAYS[d.getDay()] + " " + d.getDate() + " " + MONTHS[d.getMonth()]; }
+  function relDay(m) {
+    var d = kd(m); if (!d) return 0;
+    var t = new Date(); t.setHours(0, 0, 0, 0);
+    var k = new Date(d.getTime()); k.setHours(0, 0, 0, 0);
+    return Math.round((k.getTime() - t.getTime()) / 864e5);
+  }
+  function relName(m) { var r = relDay(m); return r === 0 ? "Aujourd'hui" : r === 1 ? "Demain" : ""; }
+  function statusFull(m) {
+    if (m.status === "live") return '<span class="live-min">' + m.minute + "'</span>";
+    if (m.status === "finished") return "Terminé";
+    var d = kd(m); return d ? dayLabel(d) + " · " + hhmm(d) : "À venir";
+  }
+  function whenCell(m) {
+    var d = kd(m);
+    if (m.status === "live") return '<div class="when live">' + m.minute + "'<small>En direct</small></div>";
+    if (m.status === "finished") return '<div class="when">Fin' + (d ? "<small>" + hhmm(d) + "</small>" : "") + "</div>";
+    return '<div class="when">' + (d ? hhmm(d) : "—") + (d ? "<small>" + (DAYS[d.getDay()].toUpperCase() + " " + d.getDate()) + "</small>" : "") + "</div>";
+  }
+  function oddsCells(m) {
+    if (m.locked) return '<span class="lockrow">🔒 Probabilités 1 · N · 2 réservées aux abonnés Premium</span>';
+    if (m.reliable === false) return '<span class="lockrow">Statistiques insuffisantes pour ce match</span>';
+    var v = pct3(P(m.live)), top = v.indexOf(Math.max(v[0], v[1], v[2])), labels = ["1", "N", "2"];
+    return v.map(function (p, i) { return '<span class="c3' + (i === top ? " top" : "") + '"><i>' + labels[i] + "</i><b>" + p + " %</b></span>"; }).join("");
+  }
+  function row(m) {
+    var scored = m.status !== "scheduled";
+    return '<button class="row" type="button" data-id="' + m.id + '">' + whenCell(m) +
+      '<div class="teams"><span>' + esc(m.home) + "</span><span>" + esc(m.away) + "</span></div>" +
+      (scored ? '<div class="sc"><span>' + m.score[0] + "</span><span>" + m.score[1] + "</span></div>" : "<div></div>") +
+      '<div class="odds">' + oddsCells(m) + "</div></button>";
+  }
+  function list(t) {
+    var arr = matches.filter(function (m) { return t === "direct" ? m.status === "live" : relDay(m) === (t === "tomorrow" ? 1 : 0); });
+    if (!arr.length) {
+      var msg = t === "direct" ? "Aucun match en direct pour le moment." : t === "tomorrow" ? "Aucun match demain dans les compétitions suivies." : (mode === "reel" ? "Aucun match aujourd'hui dans les compétitions suivies." : "En attente des matchs…");
+      return '<p class="empty">' + msg + "</p>";
+    }
+    arr.sort(function (a, b) { return (a.kickoff || "").localeCompare(b.kickoff || "") || a.league.localeCompare(b.league); });
+    var groups = [], idx = {};
+    arr.forEach(function (m) { if (!(m.league in idx)) { idx[m.league] = groups.length; groups.push({ name: m.league, items: [] }); } groups[idx[m.league]].items.push(m); });
+    var head = "";
+    if (t !== "direct") { var d = new Date(); d.setDate(d.getDate() + (t === "tomorrow" ? 1 : 0)); head = '<p class="dayhead">' + (t === "tomorrow" ? "Demain" : "Aujourd'hui") + " · " + dayLabel(d) + "</p>"; }
+    return '<div class="list">' + head + groups.map(function (g) {
+      return '<section class="grp"><h3 class="lg"><span>' + esc(g.name) + "</span><span>" + g.items.length + "</span></h3>" + g.items.map(row).join("") + "</section>";
     }).join("") + "</div>";
+  }
+  function shortDate(iso) { var p = String(iso || "").split("-"); return p.length === 3 ? p[2] + "/" + p[1] : ""; }
+  function formSide(name, f) {
+    var s = f.summary, labels = { V: "Victoire", N: "Nul", D: "Défaite" };
+    var chips = f.games.map(function (g) { return '<span class="chip ' + g.r + '" title="' + labels[g.r] + '" aria-label="' + labels[g.r] + '">' + g.r + "</span>"; }).join("");
+    var rows = f.games.slice().reverse().map(function (g) {
+      return '<li><span class="m">' + shortDate(g.d) + "</span><span>" + (g.home ? "dom." : "ext.") + " · " + esc(g.opp) + "</span><b>" + g.gf + " - " + g.ga + "</b></li>";
+    }).join("");
+    return '<div class="formside"><div class="formhead"><b>' + esc(name) + '</b><span class="chips">' + chips + "</span></div>" +
+      '<p class="nodata">' + s.w + " V · " + s.d + " N · " + s.l + " D — " + s.gf + " buts marqués, " + s.ga + " encaissés (" + s.pts + " pts sur " + (3 * s.n) + ")</p>" +
+      '<ul class="events">' + rows + "</ul></div>";
+  }
+  function formPanel(m) {
+    if (!m.form) return "";
+    return '<div class="panel"><h2>6 derniers matchs</h2><p class="nodata">Pastilles du plus ancien au plus récent. V = victoire, N = nul, D = défaite.</p>' + formSide(m.home, m.form.home) + formSide(m.away, m.form.away) + "</div>";
   }
   function detail(m) {
     var ev = (m.events || []).length ? m.events.slice().reverse().map(function (e) { return '<li><span class="m">' + e.minute + "'</span><span>" + esc(e.type.charAt(0).toUpperCase() + e.type.slice(1)) + " · " + esc(e.team) + "</span></li>"; }).join("") : '<li><span style="color:var(--muted)">Aucun événement enregistré.</span></li>';
     var head = '<div class="list"><button class="back" type="button" id="back">← Tous les matchs</button>' +
-      '<div class="panel"><div class="meta"><span>' + esc(m.league) + "</span><span>" + status(m) + "</span></div>" + board(m) + "</div>";
+      '<div class="panel"><div class="meta"><span>' + esc(m.league) + "</span><span>" + statusFull(m) + "</span></div>" + board(m) + "</div>";
     var events = '<div class="panel"><h2>Événements</h2><ul class="events">' + ev + "</ul></div></div>";
     if (m.locked) return head + '<div class="panel"><h2>Prédiction</h2>' + lockLine() + "</div>" + events;
     if (m.reliable === false) {
@@ -191,7 +278,7 @@ footer { color: var(--muted); font-size: 12px; }
       '<div class="market"><small>Score final probable</small><b>' + esc(L.score) + "</b></div>" +
       '<div class="market"><small>Buts attendus restants</small><b>' + L.xh.toFixed(2) + " – " + L.xa.toFixed(2) + "</b></div></div></div>" +
       (m.status === "live" ? '<div class="panel"><h2>Évolution minute par minute</h2>' + chart(m) + '<div class="key"><span><i class="h"></i>Domicile</span><span><i class="d"></i>Nul</span><span><i class="a"></i>Extérieur</span></div></div>' : "") +
-      '<div class="panel"><h2>Avant le match</h2>' + stack(P(m.prematch)) + "</div>" + events;
+      '<div class="panel"><h2>Avant le match</h2>' + stack(P(m.prematch)) + "</div>" + formPanel(m) + events;
   }
 
   function lockedPanel(text) { return '<div class="panel"><h2>Réservé aux abonnés</h2><p class="lock">🔒 ' + esc(text) + '</p><p class="nodata">Choisis une formule (1 semaine ou 1 mois) plus haut pour débloquer.</p></div>'; }
@@ -226,17 +313,19 @@ footer { color: var(--muted); font-size: 12px; }
   var app = document.getElementById("app");
   function currentId() { var h = location.hash.match(/^#match-(\d+)$/); return h ? +h[1] : 0; }
   function render() {
-    var id = tab === "matchs" ? currentId() : 0, m = matches.filter(function (x) { return x.id === id; })[0], sy = window.scrollY;
-    app.innerHTML = tab === "coupons" ? couponsView() : tab === "grands" ? bigView() : (m ? detail(m) : list());
+    var isList = tab === "direct" || tab === "today" || tab === "tomorrow", id = isList ? currentId() : 0, m = matches.filter(function (x) { return x.id === id; })[0], sy = window.scrollY;
+    app.innerHTML = tab === "coupons" ? couponsView() : tab === "grands" ? bigView() : (m ? detail(m) : list(tab));
     window.scrollTo(0, sy);
     document.getElementById("dot").className = "dot" + (connected ? " on" : "");
     document.getElementById("state").textContent = !connected ? "Reconnexion…" : mode === "reel" ? "Données réelles" : "Simulation (démo)";
     document.getElementById("plan").textContent = premium ? "Premium" + (expires ? " jusqu'au " + fmtDate(expires) : "") : "Gratuit";
     document.getElementById("gate").hidden = premium;
+    var nLive = matches.filter(function (x) { return x.status === "live"; }).length;
+    document.querySelector('.tab[data-tab="direct"]').innerHTML = "Direct" + (nLive ? ' <span class="badge">' + nLive + "</span>" : "");
     Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (b) { b.setAttribute("aria-selected", b.getAttribute("data-tab") === tab ? "true" : "false"); });
     var note = "Les probabilités sont des estimations statistiques, jamais des certitudes.";
     if (mode === "demo") note = "Mode démonstration : matchs simulés. " + note;
-    else if (mode === "reel" && season) note += " Forces des équipes calculées sur la saison " + season + "/" + (season + 1) + ".";
+    else if (mode === "reel" && season) note += " Forces des équipes calculées sur la saison " + season + "/" + (season + 1) + ". Scores actualisés chaque minute pendant les matchs, avec un léger différé.";
     else if (mode === "reel") note = "Statistiques des équipes indisponibles pour le moment : aucune prédiction n'est affichée." + (dataError ? " (" + dataError + ")" : "");
     document.getElementById("notice").textContent = note;
   }
@@ -256,7 +345,7 @@ footer { color: var(--muted); font-size: 12px; }
   }
 
   app.addEventListener("click", function (e) {
-    var card = e.target.closest(".card");
+    var card = e.target.closest(".card, .row");
     if (card) { location.hash = "match-" + card.getAttribute("data-id"); }
     if (e.target.closest("#back")) { location.hash = ""; }
   });

@@ -25,7 +25,9 @@ DEFAULT_COMPETITIONS = ["CL", "PL", "PD", "BL1", "SA", "FL1", "DED", "PPL", "ELC
 COMPETITIONS = [c.strip().upper() for c in os.getenv("COMPETITIONS", "").split(",") if c.strip()] or DEFAULT_COMPETITIONS
 
 SHRINK = 5  # plus il est grand, plus les forces d'équipe sont ramenées vers la moyenne
-POLL_SECONDS = int(os.getenv("POLL_SECONDS", "1200"))
+POLL_SECONDS = int(os.getenv("POLL_SECONDS", "300"))  # actualisation hors match
+LIVE_POLL_SECONDS = int(os.getenv("LIVE_POLL_SECONDS", "60"))  # actualisation pendant un match en cours ou imminent
+FORM_GAMES = 6  # nombre de derniers matchs analysés par équipe
 
 LIVE_STATUS = {"IN_PLAY"}
 PAUSED_STATUS = {"PAUSED"}
@@ -213,13 +215,60 @@ def parse_match(f: dict, now: datetime | None = None) -> dict | None:
     }
 
 
+def form_from_matches(finished: list[dict], games: int = FORM_GAMES) -> dict[str, list[dict]]:
+    """Derniers résultats de chaque équipe (du plus ancien au plus récent) depuis des matchs terminés."""
+    per_team: dict[str, list[dict]] = {}
+    seen = set()
+    for f in sorted(finished, key=lambda x: x.get("utcDate", "")):
+        if f.get("status") not in FINISHED_STATUS or f.get("id") in seen:
+            continue
+        full = (f.get("score") or {}).get("fullTime") or {}
+        gh, ga = full.get("home"), full.get("away")
+        if gh is None or ga is None:
+            continue
+        seen.add(f.get("id"))
+        home, away = team_name(f["homeTeam"]), team_name(f["awayTeam"])
+        comp = (f.get("competition") or {}).get("code")
+        for me, opp, gf, gc, is_home in ((home, away, gh, ga, True), (away, home, ga, gh, False)):
+            per_team.setdefault(me, []).append({
+                "d": str(f.get("utcDate", ""))[:10], "opp": opp, "home": is_home,
+                "gf": gf, "ga": gc, "r": "V" if gf > gc else "N" if gf == gc else "D", "comp": comp,
+            })
+    return {t: g[-games:] for t, g in per_team.items()}
+
+
+def form_summary(games: list[dict]) -> dict:
+    w = sum(1 for g in games if g["r"] == "V")
+    d = sum(1 for g in games if g["r"] == "N")
+    return {"n": len(games), "w": w, "d": d, "l": len(games) - w - d,
+            "gf": sum(g["gf"] for g in games), "ga": sum(g["ga"] for g in games), "pts": 3 * w + d}
+
+
+def fetch_form() -> dict[str, list[dict]]:
+    """Les 6 derniers matchs de chaque équipe, à partir des matchs terminés de la saison en cours
+    (une requête par compétition)."""
+    finished: list[dict] = []
+    for code in COMPETITIONS:
+        try:
+            finished.extend(_get(f"/competitions/{code}/matches?status=FINISHED").get("matches", []))
+        except FatalError as e:
+            print(f"[football-data] arrêt de la forme : {e}")
+            break
+        except Exception as e:
+            print(f"[football-data] forme {code} : {e}")
+    result = form_from_matches(finished)
+    print(f"[football-data] forme récente calculée pour {len(result)} équipes")
+    return result
+
+
 def fetch_matches() -> list[dict]:
-    """Matchs du jour des compétitions suivies, au format interne de l'application."""
+    """Matchs d'aujourd'hui et de demain des compétitions suivies, au format interne de l'application."""
     now = datetime.now(timezone.utc)
     today = now.strftime("%Y-%m-%d")
     tomorrow = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+    after = (now + timedelta(days=2)).strftime("%Y-%m-%d")
     try:
-        data = _get(f"/matches?dateFrom={today}&dateTo={tomorrow}")
+        data = _get(f"/matches?dateFrom={today}&dateTo={after}")
     except FatalError as e:
         _errors["matches"] = f"{e}"
         raise
@@ -229,11 +278,10 @@ def fetch_matches() -> list[dict]:
     _errors["matches"] = None
     matches = []
     for f in data.get("matches", []):
-        if not str(f.get("utcDate", "")).startswith(today):
+        if str(f.get("utcDate", ""))[:10] not in (today, tomorrow):
             continue
         m = parse_match(f, now)
         if m and m["league_code"] in COMPETITIONS:
             matches.append(m)
-    # Les matchs en cours en premier, puis à venir, puis terminés
-    matches.sort(key=lambda m: ({"live": 0, "scheduled": 1, "finished": 2}[m["status"]], m["kickoff"] or ""))
+    matches.sort(key=lambda m: (m["kickoff"] or "", m["league"]))
     return matches

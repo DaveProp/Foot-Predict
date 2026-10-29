@@ -75,3 +75,11 @@ def test_unreliable_matches_are_excluded():
     for m in ms:
         m["reliable"] = False
     assert coupons.build_daily(ms, TEAMS, {"scheduled"})["coupons"] == []
+
+
+def test_analysis_mentions_recent_form():
+    s = {"n": 6, "w": 4, "d": 1, "l": 1, "gf": 11, "ga": 4, "pts": 13}
+    m = dict(fake_matches()[0], form={"home": {"games": [], "summary": s}, "away": {"games": [], "summary": s}})
+    d = coupons.analyse_match(m, TEAMS)
+    assert "4 victoire(s)" in d["analysis"] and "6 derniers matchs" in d["analysis"]
+    assert "Forme" not in coupons.analyse_match(fake_matches()[0], TEAMS)["analysis"]

@@ -59,6 +59,7 @@ matches: dict[int, dict] = {}
 clients: dict[WebSocket, str] = {}  # connexion -> code d'accès présenté (vide = gratuit)
 daily: dict = {"date": None, "coupons": [], "big_matches": [], "note": "", "ts": 0.0}
 wake = asyncio.Event()  # réveille real_loop à minuit
+wake_strengths = asyncio.Event()  # réveille strengths_loop à minuit
 
 
 def build_matches() -> None:
@@ -128,7 +129,7 @@ def data_error():
 
 # --- Accès Premium -------------------------------------------------------------------------
 
-FREE_FIELDS = ("id", "league", "home", "away", "minute", "score", "status", "reliable", "events")
+FREE_FIELDS = ("id", "league", "home", "away", "minute", "score", "status", "reliable", "events", "kickoff")
 
 
 def public_view(m: dict, premium: bool) -> dict:
@@ -172,7 +173,8 @@ async def ensure_daily() -> None:
     if daily["date"] == today_str() and (daily["coupons"] or time.time() - daily["ts"] < 1800):
         return
     statuses = {"scheduled"} if USE_REAL else {"scheduled", "live", "finished"}
-    snapshot = [dict(m) for m in matches.values()]
+    # Les coupons du jour ne portent que sur les matchs du jour (pas ceux de demain)
+    snapshot = [dict(m) for m in matches.values() if not m.get("kickoff") or m["kickoff"][:10] == today_str()]
     try:
         result = await asyncio.to_thread(coupons.build_daily, snapshot, dict(TEAMS), statuses)
     except Exception as e:
@@ -190,6 +192,7 @@ async def midnight_loop() -> None:
         nxt = (now + timedelta(days=1)).replace(hour=0, minute=0, second=10, microsecond=0)
         await asyncio.sleep((nxt - now).total_seconds())
         wake.set()
+        wake_strengths.set()
 
 
 async def ticker() -> None:
@@ -207,41 +210,96 @@ async def ticker() -> None:
 USE_REAL = bool(os.getenv("FOOTBALL_DATA_KEY"))
 DEFAULT_TEAM = {"attack": 1.0, "defense": 1.0}
 real_strengths: dict[str, dict] = {}
+real_form: dict[str, list] = {}  # 6 derniers matchs de chaque équipe
+
+
+def attach_form(m: dict) -> None:
+    import data_provider
+    hf, af = real_form.get(m["home"]), real_form.get(m["away"])
+    if hf and af:
+        m["form"] = {
+            "home": {"games": hf, "summary": data_provider.form_summary(hf)},
+            "away": {"games": af, "summary": data_provider.form_summary(af)},
+        }
+    else:
+        m.pop("form", None)
+
+
+def apply_matches(fresh: list[dict]) -> None:
+    """Met à jour la liste des matchs d'un seul bloc (pas de liste vide visible entre deux actualisations)."""
+    new: dict[int, dict] = {}
+    for m in fresh:
+        for team in (m["home"], m["away"]):
+            TEAMS[team] = real_strengths.get(team, TEAMS.get(team, DEFAULT_TEAM))
+        # Prédiction fiable seulement si les deux équipes ont de vraies statistiques
+        m["reliable"] = m["home"] in real_strengths and m["away"] in real_strengths
+        refresh(m)
+        attach_form(m)
+        new[m["id"]] = m
+    matches.clear()
+    matches.update(new)
+
+
+def next_poll() -> float:
+    """Actualisation rapide pendant un match en cours ou imminent, plus lente le reste du temps."""
+    import data_provider
+    now = datetime.now(timezone.utc)
+    for m in matches.values():
+        if m["status"] == "live":
+            return data_provider.LIVE_POLL_SECONDS
+        if m["status"] == "scheduled" and m.get("kickoff"):
+            try:
+                start = datetime.fromisoformat(m["kickoff"].replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if -1800 <= (start - now).total_seconds() <= 900:
+                return data_provider.LIVE_POLL_SECONDS
+    return data_provider.POLL_SECONDS
 
 
 async def real_loop() -> None:
-    """Mode réel : actualise les forces d'équipe (1 fois/jour, à minuit) et les matchs (toutes les POLL_SECONDS)."""
+    """Mode réel : actualise les matchs d'aujourd'hui et de demain (toutes les minutes en cas de match, sinon POLL_SECONDS)."""
     import data_provider
-    last_strengths = 0.0
     while True:
         try:
-            if time.time() - last_strengths > 86400:
-                got = await asyncio.to_thread(data_provider.fetch_strengths)
-                real_strengths.update(got)
-                # Échec (clé refusée, réseau...) : nouvel essai dans 30 min au lieu de 24 h
-                last_strengths = time.time() if got else time.time() - 86400 + 1800
             if not data_provider.quota_low():
-                fresh = await asyncio.to_thread(data_provider.fetch_matches)
-                matches.clear()
-                for m in fresh:
-                    for team in (m["home"], m["away"]):
-                        TEAMS[team] = real_strengths.get(team, TEAMS.get(team, DEFAULT_TEAM))
-                    # Prédiction fiable seulement si les deux équipes ont de vraies statistiques
-                    m["reliable"] = m["home"] in real_strengths and m["away"] in real_strengths
-                    refresh(m)
-                    matches[m["id"]] = m
+                apply_matches(await asyncio.to_thread(data_provider.fetch_matches))
                 await ensure_daily()
                 await broadcast()
             else:
-                print("[real_loop] quota API presque épuisé : pause jusqu'au renouvellement")
+                print("[real_loop] limite de requêtes atteinte : pause")
         except Exception as e:
             print(f"[real_loop] erreur : {e}")
         try:
-            await asyncio.wait_for(wake.wait(), data_provider.POLL_SECONDS)
-            last_strengths = 0.0  # minuit : on recalcule aussi les forces d'équipe
+            await asyncio.wait_for(wake.wait(), next_poll())
         except asyncio.TimeoutError:
             pass
         wake.clear()
+
+
+async def strengths_loop() -> None:
+    """Chaque jour (et à minuit) : forces d'équipe et 6 derniers matchs. Tâche lente (limite de 10 requêtes/minute),
+    séparée de la boucle des scores pour ne jamais la bloquer."""
+    import data_provider
+    while True:
+        retry = 1800
+        try:
+            got = await asyncio.to_thread(data_provider.fetch_strengths)
+            if got:
+                real_strengths.update(got)
+                real_form.update(await asyncio.to_thread(data_provider.fetch_form))
+                apply_matches(list(matches.values()))
+                daily["date"] = None  # les coupons doivent être refaits avec les vraies statistiques
+                await ensure_daily()
+                await broadcast()
+                retry = 86400
+        except Exception as e:
+            print(f"[strengths_loop] erreur : {e}")
+        try:
+            await asyncio.wait_for(wake_strengths.wait(), retry)  # minuit ou nouvel essai dans 30 min
+        except asyncio.TimeoutError:
+            pass
+        wake_strengths.clear()
 
 
 @asynccontextmanager
@@ -252,7 +310,8 @@ async def lifespan(_: FastAPI):
         print("ATTENTION : ADMIN_KEY non défini, impossible de créer des codes d'accès")
     if USE_REAL:
         print("Mode RÉEL : données football-data.org")
-        tasks = [asyncio.create_task(real_loop()), asyncio.create_task(midnight_loop())]
+        tasks = [asyncio.create_task(real_loop()), asyncio.create_task(strengths_loop()),
+                 asyncio.create_task(midnight_loop())]
     else:
         print("Mode DÉMO : matchs simulés (définir FOOTBALL_DATA_KEY pour les vrais matchs)")
         build_matches()

@@ -154,15 +154,32 @@ def claude_analysis(match: dict, facts: str) -> str | None:
         return None
 
 
+def form_text(match: dict) -> str:
+    """Résumé en une phrase des 6 derniers matchs de chaque équipe (vide si indisponible)."""
+    form = match.get("form")
+    if not form:
+        return ""
+    parts = []
+    for side in ("home", "away"):
+        s = form[side]["summary"]
+        parts.append(
+            f"{match[side]} : {s['w']} victoire(s), {s['d']} nul(s), {s['l']} défaite(s) sur ses {s['n']} derniers matchs "
+            f"({s['gf']} buts marqués, {s['ga']} encaissés)"
+        )
+    return " ; ".join(parts) + "."
+
+
 def analyse_match(match: dict, teams: dict) -> dict:
     lh, la = expected_goals(teams[match["home"]], teams[match["away"]])
     probs = market_probs(lh, la)
     score = summarize(score_matrix(lh, la))["most_likely_score"]
+    recent = form_text(match)
     facts = (
         f"Match : {match['home']} (domicile) contre {match['away']} ({match['league']}).\n"
         f"Buts attendus : {lh:.2f} pour {match['home']}, {la:.2f} pour {match['away']}.\n"
         f"Probabilités : victoire {match['home']} {probs['1']:.0%}, nul {probs['X']:.0%}, victoire {match['away']} {probs['2']:.0%}.\n"
         f"Plus de 2,5 buts : {probs['over_2_5']:.0%} ; les deux marquent : {probs['btts_yes']:.0%} ; score le plus probable : {score}."
+        + (f"\nForme récente : {recent}" if recent else "")
     )
     text = claude_analysis(match, facts)
     return {
@@ -170,7 +187,7 @@ def analyse_match(match: dict, teams: dict) -> dict:
         "home_win": round(probs["1"], 4), "draw": round(probs["X"], 4), "away_win": round(probs["2"], 4),
         "over_2_5": round(probs["over_2_5"], 4), "btts": round(probs["btts_yes"], 4),
         "most_likely_score": score, "xg_home": round(lh, 2), "xg_away": round(la, 2),
-        "analysis": text or template_analysis(match, lh, la, probs, score),
+        "analysis": text or (template_analysis(match, lh, la, probs, score) + (f" Forme récente : {recent}" if recent else "")),
         "analysis_source": "claude" if text else "modele",
     }
 
