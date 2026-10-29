@@ -39,6 +39,10 @@ h1 { font-family: var(--display); font-size: 34px; letter-spacing: .02em; text-t
 .notice { color: var(--muted); font-size: 13px; margin: 0; }
 .tabs { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -2px; padding: 2px; }
 .tabs::-webkit-scrollbar { display: none; }
+.lchips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -2px 12px; padding: 2px; }
+.lchips::-webkit-scrollbar { display: none; }
+.lchip { background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
+.lchip.on { background: var(--home); border-color: var(--home); color: #04101f; }
 .tab { background: var(--pitch-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; font-weight: 600; font-size: 14px; cursor: pointer; text-align: center; white-space: nowrap; flex: 0 0 auto; }
 .badge { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: var(--away); color: #04130b; font-size: 12px; line-height: 18px; }
 .tab[aria-selected="true"] { background: var(--home); color: #04130b; border-color: var(--home); }
@@ -160,7 +164,7 @@ footer { color: var(--muted); font-size: 12px; }
 <script>
 (function () {
   var matches = [], mode = "", season = null, connected = false, dataError = null;
-  var cfg = {}, code = lsGet("fp_code"), premium = false, expires = null, tab = "today", daily = null, ws = null;
+  var cfg = {}, code = lsGet("fp_code"), premium = false, expires = null, tab = "today", daily = null, ws = null, leagueFilter = "";
 
   function lsGet(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
@@ -244,12 +248,20 @@ footer { color: var(--muted); font-size: 12px; }
       var msg = t === "direct" ? "Aucun match en direct pour le moment." : t === "tomorrow" ? "Aucun match demain dans les compétitions suivies." : (mode === "reel" ? "Aucun match aujourd'hui dans les compétitions suivies." : "En attente des matchs…");
       return '<p class="empty">' + msg + "</p>";
     }
+    var counts = {}, names = [];
+    arr.forEach(function (m) { if (!(m.league in counts)) { counts[m.league] = 0; names.push(m.league); } counts[m.league]++; });
+    names.sort();
+    if (leagueFilter && !(leagueFilter in counts)) leagueFilter = "";
+    var chips = names.length > 1 ? '<div class="lchips"><button class="lchip' + (leagueFilter ? "" : " on") + '" type="button" data-league="">Tous (' + arr.length + ")</button>" + names.map(function (n) {
+      return '<button class="lchip' + (leagueFilter === n ? " on" : "") + '" type="button" data-league="' + esc(n) + '">' + esc(n) + " (" + counts[n] + ")</button>";
+    }).join("") + "</div>" : "";
+    if (leagueFilter) arr = arr.filter(function (m) { return m.league === leagueFilter; });
     arr.sort(function (a, b) { return (a.kickoff || "").localeCompare(b.kickoff || "") || a.league.localeCompare(b.league); });
     var groups = [], idx = {};
     arr.forEach(function (m) { if (!(m.league in idx)) { idx[m.league] = groups.length; groups.push({ name: m.league, items: [] }); } groups[idx[m.league]].items.push(m); });
     var head = "";
     if (t !== "direct") { var d = new Date(); d.setDate(d.getDate() + (t === "tomorrow" ? 1 : 0)); head = '<p class="dayhead">' + (t === "tomorrow" ? "Demain" : "Aujourd'hui") + " · " + dayLabel(d) + "</p>"; }
-    return '<div class="list">' + head + groups.map(function (g) {
+    return '<div class="list">' + head + chips + groups.map(function (g) {
       return '<section class="grp"><h3 class="lg"><span>' + esc(g.name) + "</span><span>" + g.items.length + "</span></h3>" + g.items.map(row).join("") + "</section>";
     }).join("") + "</div>";
   }
@@ -366,6 +378,8 @@ footer { color: var(--muted); font-size: 12px; }
   }
 
   app.addEventListener("click", function (e) {
+    var lc = e.target.closest(".lchip");
+    if (lc) { leagueFilter = lc.getAttribute("data-league") || ""; render(); return; }
     var card = e.target.closest(".card, .row");
     if (card) { location.hash = "match-" + card.getAttribute("data-id"); }
     if (e.target.closest("#back")) { location.hash = ""; }
