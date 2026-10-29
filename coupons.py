@@ -23,7 +23,7 @@ CATEGORIES = [
     ("risque", "Risque", 7.00, 10.00, (1.50, 4.00)),
 ]
 
-CHAMPIONS_IDS = {2, 3, 848, 12, 20}
+BIG_COMPETITIONS = {"CL", "WC", "EC"}  # codes football-data.org : Ligue des champions, Coupe du monde, Euro
 
 
 def _labels(home: str, away: str) -> dict[str, str]:
@@ -104,7 +104,7 @@ def _quality(team: dict) -> float:
 
 def pick_big_matches(matches: list[dict], teams: dict, n: int = 3) -> list[dict]:
     def importance(m):
-        bonus = 1.0 if m.get("league_id") in CHAMPIONS_IDS else 0.0
+        bonus = 1.0 if m.get("league_code") in BIG_COMPETITIONS else 0.0
         return _quality(teams[m["home"]]) + _quality(teams[m["away"]]) + bonus
     return sorted(matches, key=importance, reverse=True)[:n]
 

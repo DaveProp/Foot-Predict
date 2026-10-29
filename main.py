@@ -1,9 +1,9 @@
 """API FastAPI : prédictions, flux en direct (WebSocket), accès Premium (Wave) et coupons du jour.
 
-En mode démo (sans FOOTBALL_API_KEY), les matchs « en direct » sont simulés.
-En mode réel, les données viennent d'API-Football et les coupons sont régénérés chaque jour à 00h (UTC = Abidjan).
+En mode démo (sans FOOTBALL_DATA_KEY), les matchs « en direct » sont simulés.
+En mode réel, les données viennent de football-data.org et les coupons sont régénérés chaque jour à 00h (UTC = Abidjan).
 
-Variables d'environnement utiles : FOOTBALL_API_KEY, ACCESS_SECRET, ADMIN_KEY, WAVE_URL, PLAN_LABEL,
+Variables d'environnement utiles : FOOTBALL_DATA_KEY (football-data.org), ACCESS_SECRET, ADMIN_KEY, WAVE_URL, PLAN_LABEL,
 WHATSAPP_NUMBER, ANTHROPIC_API_KEY (analyses rédigées par Claude, facultatif).
 """
 import asyncio
@@ -109,14 +109,21 @@ def simulate_tick(m: dict) -> None:
 
 
 def mode() -> str:
-    return "reel" if os.getenv("FOOTBALL_API_KEY") else "demo"
+    return "reel" if os.getenv("FOOTBALL_DATA_KEY") else "demo"
 
 
 def season():
-    if not os.getenv("FOOTBALL_API_KEY"):
+    if not os.getenv("FOOTBALL_DATA_KEY"):
         return None
     import data_provider
     return data_provider.STRENGTH_SEASON
+
+
+def data_error():
+    if not os.getenv("FOOTBALL_DATA_KEY"):
+        return None
+    import data_provider
+    return data_provider.data_error()
 
 
 # --- Accès Premium -------------------------------------------------------------------------
@@ -139,6 +146,7 @@ def payload_for(code: str) -> dict:
     return {
         "type": "update", "mode": mode(), "season": season(),
         "premium": premium, "expires": expires.isoformat() if expires else None,
+        "data_error": data_error(),
         "matches": [public_view(m, premium) for m in list(matches.values())],
     }
 
@@ -196,7 +204,7 @@ async def ticker() -> None:
         await broadcast()
 
 
-USE_REAL = bool(os.getenv("FOOTBALL_API_KEY"))
+USE_REAL = bool(os.getenv("FOOTBALL_DATA_KEY"))
 DEFAULT_TEAM = {"attack": 1.0, "defense": 1.0}
 real_strengths: dict[str, dict] = {}
 
@@ -208,8 +216,10 @@ async def real_loop() -> None:
     while True:
         try:
             if time.time() - last_strengths > 86400:
-                real_strengths.update(await asyncio.to_thread(data_provider.fetch_strengths))
-                last_strengths = time.time()
+                got = await asyncio.to_thread(data_provider.fetch_strengths)
+                real_strengths.update(got)
+                # Échec (clé refusée, réseau...) : nouvel essai dans 30 min au lieu de 24 h
+                last_strengths = time.time() if got else time.time() - 86400 + 1800
             if not data_provider.quota_low():
                 fresh = await asyncio.to_thread(data_provider.fetch_matches)
                 matches.clear()
@@ -241,10 +251,10 @@ async def lifespan(_: FastAPI):
     if not ADMIN_KEY:
         print("ATTENTION : ADMIN_KEY non défini, impossible de créer des codes d'accès")
     if USE_REAL:
-        print("Mode RÉEL : données API-Football")
+        print("Mode RÉEL : données football-data.org")
         tasks = [asyncio.create_task(real_loop()), asyncio.create_task(midnight_loop())]
     else:
-        print("Mode DÉMO : matchs simulés (définir FOOTBALL_API_KEY pour les vrais matchs)")
+        print("Mode DÉMO : matchs simulés (définir FOOTBALL_DATA_KEY pour les vrais matchs)")
         build_matches()
         tasks = [asyncio.create_task(ticker())]
     yield

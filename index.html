@@ -126,7 +126,7 @@ footer { color: var(--muted); font-size: 12px; }
 
 <script>
 (function () {
-  var matches = [], mode = "", season = null, connected = false;
+  var matches = [], mode = "", season = null, connected = false, dataError = null;
   var cfg = {}, code = lsGet("fp_code"), premium = false, expires = null, tab = "matchs", daily = null, ws = null;
 
   function lsGet(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
@@ -206,13 +206,13 @@ footer { color: var(--muted); font-size: 12px; }
   function couponsView() {
     if (!premium) return lockedPanel("Les 3 coupons du jour sont réservés aux abonnés Premium.");
     if (!daily) return '<p class="empty">Chargement des coupons…</p>';
-    if (!daily.coupons.length) return '<p class="empty">Les coupons du jour ne sont pas encore prêts (aucun match exploitable pour le moment).</p>';
+    if (!daily.coupons.length) return '<p class="empty">' + (dataError ? "Données de matchs indisponibles : " + esc(dataError) + ". Les coupons reviendront dès que les données seront rétablies." : "Les coupons du jour ne sont pas encore prêts (aucun match exploitable pour le moment).") + "</p>";
     return '<div class="list"><p class="nodata">Coupons du ' + fmtDate(daily.date) + ", mis à jour chaque jour à 00h.</p>" + daily.coupons.map(couponCard).join("") + '<p class="nodata">' + esc(daily.note) + "</p></div>";
   }
   function bigView() {
     if (!premium) return lockedPanel("L'analyse des grands matchs est réservée aux abonnés Premium.");
     if (!daily) return '<p class="empty">Chargement des analyses…</p>';
-    if (!daily.big_matches.length) return '<p class="empty">Aucun grand match analysé pour le moment.</p>';
+    if (!daily.big_matches.length) return '<p class="empty">' + (dataError ? "Données de matchs indisponibles : " + esc(dataError) + "." : "Aucun grand match analysé pour le moment.") + "</p>";
     return '<div class="list">' + daily.big_matches.map(function (b) {
       var fav = b.home_win >= b.away_win ? b.home : b.away, pf = Math.max(b.home_win, b.away_win);
       return '<div class="panel"><div class="meta"><span>' + esc(b.league) + '</span><span>' + (b.analysis_source === "claude" ? "Analyse Claude" : "Analyse du modèle") + "</span></div>" +
@@ -237,7 +237,7 @@ footer { color: var(--muted); font-size: 12px; }
     var note = "Les probabilités sont des estimations statistiques, jamais des certitudes.";
     if (mode === "demo") note = "Mode démonstration : matchs simulés. " + note;
     else if (mode === "reel" && season) note += " Forces des équipes calculées sur la saison " + season + "/" + (season + 1) + ".";
-    else if (mode === "reel") note = "Statistiques des équipes indisponibles pour le moment : aucune prédiction n'est affichée.";
+    else if (mode === "reel") note = "Statistiques des équipes indisponibles pour le moment : aucune prédiction n'est affichée." + (dataError ? " (" + dataError + ")" : "");
     document.getElementById("notice").textContent = note;
   }
 
@@ -287,7 +287,7 @@ footer { color: var(--muted); font-size: 12px; }
     ws.onmessage = function (e) {
       var d = JSON.parse(e.data);
       if (d.type === "update") {
-        matches = d.matches; mode = d.mode || ""; season = d.season || null;
+        matches = d.matches; mode = d.mode || ""; season = d.season || null; dataError = d.data_error || null;
         setPremium(!!d.premium, d.expires);
         render();
       }
