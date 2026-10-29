@@ -88,6 +88,12 @@ h2 { font-family: var(--display); font-size: 18px; letter-spacing: .06em; text-t
 .odds { font-family: var(--display); font-size: 34px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
 .leg { border-top: 1px solid var(--line); padding-top: 8px; display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
 .leg small { color: var(--muted); display: block; }
+.badge { display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; margin-top: 6px; }
+.badge.won { background: var(--home); color: #04101f; }
+.badge.lost { background: rgba(255,107,87,.16); color: var(--away); }
+.badge.pending { background: var(--pitch); color: var(--muted); border: 1px solid var(--line); }
+.panel.won { border-color: var(--home); box-shadow: 0 0 0 1px var(--home), 0 8px 30px rgba(62,166,255,.28); }
+.leg .ok { color: var(--home); font-weight: 800; } .leg .ko { color: var(--away); font-weight: 800; }
 .leg .n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .analysis { margin: 0; font-size: 14px; }
 .tag { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
@@ -161,6 +167,8 @@ footer { color: var(--muted); font-size: 12px; }
   function P(l) { return { h: l.home_win, d: l.draw, a: l.away_win, o25: l.over_2_5, btts: l.btts, score: l.most_likely_score, xh: l.xg_home, xa: l.xg_away }; }
   function pct3(p) { var a = Math.round(p.h * 100), b = Math.round(p.d * 100); return [a, b, Math.max(0, 100 - a - b)]; }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function od(x) { return Number(x).toFixed(2).replace(".", ","); }
+  function rg(x) { return String(x).replace(".", ","); }
   function pc(x) { return Math.round(x * 100) + " %"; }
   function fmtDate(iso) { var p = String(iso || "").split("-"); return p.length === 3 ? p[2] + "/" + p[1] + "/" + p[0] : ""; }
 
@@ -284,17 +292,30 @@ footer { color: var(--muted); font-size: 12px; }
   function lockedPanel(text) { return '<div class="panel"><h2>Réservé aux abonnés</h2><p class="lock">🔒 ' + esc(text) + '</p><p class="nodata">Choisis une formule (1 semaine ou 1 mois) plus haut pour débloquer.</p></div>'; }
 
   function couponCard(c) {
-    if (c.empty) return '<div class="panel"><div class="coupon-head"><h2>' + esc(c.label) + '</h2><span class="tag">cote ' + c.min + " à " + c.max + '</span></div><p class="nodata">Pas assez de matchs pour composer ce coupon aujourd\'hui.</p></div>';
+    if (c.empty) return '<div class="panel"><div class="coupon-head"><h2>' + esc(c.label) + '</h2><span class="tag">cote ' + rg(c.min) + "–" + rg(c.max) + '</span></div><p class="nodata">Pas assez de matchs pour composer ce coupon aujourd\'hui.</p></div>';
     var legs = c.legs.map(function (l) {
-      return '<div class="leg"><div><b>' + esc(l.pick) + "</b><small>" + esc(l.match) + " · " + esc(l.league) + '</small></div><div class="n">' + l.odds.toFixed(2) + "<small>" + pc(l.probability) + "</small></div></div>";
+      var mark = l.result === "won" ? ' <span class="ok">✓</span>' : l.result === "lost" ? ' <span class="ko">✗</span>' : "";
+      var fin = l.final ? " · score final " + esc(l.final) : "";
+      return '<div class="leg"><div><b>' + esc(l.pick) + mark + "</b><small>" + esc(l.match) + " · " + esc(l.league) + fin + '</small></div><div class="n">' + od(l.odds) + "<small>" + pc(l.probability) + "</small></div></div>";
     }).join("");
-    return '<div class="panel"><div class="coupon-head"><div><h2>' + esc(c.label) + '</h2><span class="tag">cote visée ' + c.min + " à " + c.max + '</span></div><div style="text-align:right"><div class="odds">' + c.total_odds.toFixed(2) + '</div><span class="tag">chance combinée ' + pc(c.probability) + "</span></div></div>" + legs + "</div>";
+    var st = c.status || "pending";
+    var badge = '<div><span class="badge ' + st + '">' + (st === "won" ? "✓ Coupon gagné" : st === "lost" ? "Coupon perdu" : "En cours") + "</span></div>";
+    return '<div class="panel ' + st + '"><div class="coupon-head"><div><h2>' + esc(c.label) + '</h2><span class="tag">cote visée ' + rg(c.min) + "–" + rg(c.max) + "</span>" + badge + '</div><div style="text-align:right"><div class="odds">' + od(c.total_odds) + '</div><span class="tag">chance combinée ' + pc(c.probability) + "</span></div></div>" + legs + "</div>";
+  }
+  function previousView() {
+    var p = daily.previous;
+    if (!p || !p.coupons || !p.coupons.length) return "";
+    var items = p.coupons.filter(function (c) { return !c.empty; }).map(function (c) {
+      var st = c.status || "pending";
+      return '<div class="leg"><div><b>' + esc(c.label) + '</b></div><div class="n"><span class="badge ' + st + '" style="margin:0">' + (st === "won" ? "✓ Gagné" : st === "lost" ? "Perdu" : "En cours") + "</span></div></div>";
+    }).join("");
+    return '<div class="panel"><h2>Résultats de la veille</h2><span class="tag">' + fmtDate(p.date) + "</span>" + items + "</div>";
   }
   function couponsView() {
     if (!premium) return lockedPanel("Les 3 coupons du jour sont réservés aux abonnés Premium.");
     if (!daily) return '<p class="empty">Chargement des coupons…</p>';
     if (!daily.coupons.length) return '<p class="empty">' + (dataError ? "Données de matchs indisponibles : " + esc(dataError) + ". Les coupons reviendront dès que les données seront rétablies." : "Les coupons du jour ne sont pas encore prêts (aucun match exploitable pour le moment).") + "</p>";
-    return '<div class="list"><p class="nodata">Coupons du ' + fmtDate(daily.date) + ", mis à jour chaque jour à 00h.</p>" + daily.coupons.map(couponCard).join("") + '<p class="nodata">' + esc(daily.note) + "</p></div>";
+    return '<div class="list"><p class="nodata">Coupons du ' + fmtDate(daily.date) + ", mis à jour chaque jour à 00h.</p>" + daily.coupons.map(couponCard).join("") + previousView() + '<p class="nodata">' + esc(daily.note) + "</p></div>";
   }
   function bigView() {
     if (!premium) return lockedPanel("L'analyse des grands matchs est réservée aux abonnés Premium.");
@@ -396,7 +417,7 @@ footer { color: var(--muted); font-size: 12px; }
     }
   }).catch(function () {});
 
-  setInterval(loadDaily, 600000); // reprend les nouveaux coupons après la mise à jour de 00h
+  setInterval(loadDaily, 60000); // reprend les nouveaux coupons après la mise à jour de 00h
   render(); connect();
 })();
 </script>

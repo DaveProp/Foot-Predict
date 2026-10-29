@@ -58,6 +58,7 @@ FIXTURES = [
 matches: dict[int, dict] = {}
 clients: dict[WebSocket, str] = {}  # connexion -> code d'accès présenté (vide = gratuit)
 daily: dict = {"date": None, "coupons": [], "big_matches": [], "note": "", "ts": 0.0}
+previous: dict = {}  # coupons de la veille, conservés avec leurs résultats
 wake = asyncio.Event()  # réveille real_loop à minuit
 wake_strengths = asyncio.Event()  # réveille strengths_loop à minuit
 
@@ -152,7 +153,15 @@ def payload_for(code: str) -> dict:
     }
 
 
+def settle_all() -> None:
+    by_id = {m["id"]: m for m in matches.values()}
+    coupons.settle(daily, by_id)
+    if previous:
+        coupons.settle(previous, by_id)
+
+
 async def broadcast() -> None:
+    settle_all()
     for ws, code in list(clients.items()):
         try:
             await ws.send_json(payload_for(code))
@@ -169,8 +178,8 @@ def today_str() -> str:
 
 async def ensure_daily() -> None:
     """Construit les coupons et analyses du jour s'ils ne sont pas déjà faits (ou si la tentative était vide)."""
-    global daily
-    if daily["date"] == today_str() and (daily["coupons"] or time.time() - daily["ts"] < 1800):
+    global daily, previous
+    if daily["date"] == today_str() and not daily.get("stale") and (daily["coupons"] or time.time() - daily["ts"] < 1800):
         return
     statuses = {"scheduled"} if USE_REAL else {"scheduled", "live", "finished"}
     # Les coupons du jour ne portent que sur les matchs du jour (pas ceux de demain)
@@ -181,6 +190,9 @@ async def ensure_daily() -> None:
         print(f"[daily] erreur : {e}")
         return
     result["ts"] = time.time()
+    if daily.get("date") and daily["date"] != result["date"] and daily["coupons"]:
+        settle_all()
+        previous = daily  # la veille : on garde ses résultats visibles
     daily = result
     print(f"[daily] {result['date']} : {len(result['coupons'])} coupons, {len(result['big_matches'])} grands matchs")
 
@@ -289,7 +301,7 @@ async def strengths_loop() -> None:
                 real_strengths.update(got)
                 real_form.update(await asyncio.to_thread(data_provider.fetch_form))
                 apply_matches(list(matches.values()))
-                daily["date"] = None  # les coupons doivent être refaits avec les vraies statistiques
+                daily["stale"] = True  # les coupons doivent être refaits avec les vraies statistiques
                 await ensure_daily()
                 await broadcast()
                 retry = 86400
@@ -357,10 +369,16 @@ async def admin_rebuild(key: str = ""):
     """Force la régénération immédiate des coupons et analyses du jour : /admin/rebuild?key=..."""
     if not ADMIN_KEY or not hmac.compare_digest(key.encode(), ADMIN_KEY.encode()):
         raise HTTPException(403, "Clé administrateur invalide")
-    daily["date"] = None
+    daily["stale"] = True
     await ensure_daily()
+    today = today_str()
     return {"mode": mode(), "date": daily["date"], "matches_used": daily.get("matches_used", 0),
-            "coupons": len(daily["coupons"]), "big_matches": len(daily["big_matches"])}
+            "coupons": len(daily["coupons"]), "big_matches": len(daily["big_matches"]),
+            # Diagnostic : où se perdent les matchs
+            "matches_loaded": len(matches),
+            "today_scheduled": sum(1 for m in matches.values() if m["status"] == "scheduled" and (m.get("kickoff") or today)[:10] == today),
+            "today_scheduled_reliable": sum(1 for m in matches.values() if m["status"] == "scheduled" and m.get("reliable") and (m.get("kickoff") or today)[:10] == today),
+            "teams_with_stats": len(real_strengths), "teams_with_form": len(real_form), "data_error": data_error()}
 
 
 @app.get("/admin/diag")
@@ -378,7 +396,11 @@ async def admin_diag(key: str = ""):
 def get_daily(x_access_code: str = Header(default="")):
     if access.check_code(x_access_code) is None:
         raise HTTPException(402, "Accès Premium requis")
-    return {k: v for k, v in daily.items() if k != "ts"}
+    settle_all()
+    out = {k: v for k, v in daily.items() if k not in ("ts", "stale")}
+    if previous:
+        out["previous"] = {k: previous[k] for k in ("date", "coupons") if k in previous}
+    return out
 
 
 @app.get("/matches")

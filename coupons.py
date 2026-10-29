@@ -98,6 +98,34 @@ def build_coupons(matches: list[dict], teams: dict) -> list[dict]:
     return coupons
 
 
+def leg_won(market: str, h: int, a: int) -> bool:
+    """Un pari est-il gagné avec le score final h-a (temps réglementaire) ?"""
+    g = h + a
+    return {
+        "1": h > a, "2": a > h, "1X": h >= a, "X2": a >= h, "12": h != a,
+        "over_1_5": g >= 2, "over_2_5": g >= 3, "under_3_5": g <= 3,
+        "btts_yes": h > 0 and a > 0, "btts_no": h == 0 or a == 0,
+    }[market]
+
+
+def settle(d: dict, by_id: dict) -> None:
+    """Marque chaque sélection gagnée/perdue dès que son match est terminé, puis le coupon :
+    gagné si tout est gagné, perdu dès qu'une sélection est perdue, sinon en cours."""
+    for c in d.get("coupons", []):
+        if c.get("empty"):
+            continue
+        for leg in c["legs"]:
+            if leg.get("result") in ("won", "lost"):
+                continue
+            m = by_id.get(leg["match_id"])
+            sc = m.get("score") if m else None
+            if m and m["status"] == "finished" and sc and None not in sc:
+                leg["final"] = f"{sc[0]}-{sc[1]}"
+                leg["result"] = "won" if leg_won(leg["market"], sc[0], sc[1]) else "lost"
+        res = [leg.get("result") for leg in c["legs"]]
+        c["status"] = "lost" if "lost" in res else "won" if all(r == "won" for r in res) else "pending"
+
+
 def _quality(team: dict) -> float:
     return team["attack"] / max(team["defense"], 0.3)
 
