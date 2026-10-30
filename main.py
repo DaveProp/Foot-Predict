@@ -21,7 +21,7 @@ from fastapi.responses import FileResponse
 
 import access
 import coupons
-from model import expected_goals, predict_live, predict_prematch
+from model import blend_strength, expected_goals, predict_live, predict_prematch
 
 WAVE_BASE = os.getenv("WAVE_URL", "https://pay.wave.com/m/M_ci_fAtDWzspJqhS/c/ci/")
 # Formules d'abonnement : le montant est pré-rempli dans le lien Wave
@@ -58,6 +58,7 @@ FIXTURES = [
 matches: dict[int, dict] = {}
 clients: dict[WebSocket, str] = {}  # connexion -> code d'accès présenté (vide = gratuit)
 daily: dict = {"date": None, "coupons": [], "big_matches": [], "note": "", "ts": 0.0}
+history: dict = {"date": None, "matches": [], "coupons": [], "source": "", "coupons_ok": False, "try": 0.0}
 previous: dict = {}  # coupons de la veille, conservés avec leurs résultats
 wake = asyncio.Event()  # réveille real_loop à minuit
 wake_strengths = asyncio.Event()  # réveille strengths_loop à minuit
@@ -77,9 +78,22 @@ def build_matches() -> None:
 history_store: dict[int, list] = {}  # évolution des probabilités minute par minute, par match
 
 
+frozen: dict[int, dict] = {}  # prédiction figée de chaque match (ne bouge plus une fois le jour du match arrivé)
+
+
 def refresh(m: dict) -> None:
+    """La prédiction affichée est calculée avant le coup d'envoi et reste identique pendant tout le match :
+    ni le score, ni la minute, ni les cartons ne la modifient."""
     home, away = TEAMS[m["home"]], TEAMS[m["away"]]
-    m["prematch"] = predict_prematch(home, away)
+    due = m["status"] != "scheduled" or not m.get("kickoff") or m["kickoff"][:10] <= today_str()
+    if m["id"] in frozen:
+        pre = frozen[m["id"]]
+    else:
+        pre = predict_prematch(home, away)
+        if m.get("reliable", True) and due:  # gel seulement avec de vraies statistiques et le jour du match
+            frozen[m["id"]] = pre
+    m["prematch"] = pre
+    # Évolution en direct : affichée à part, dans le graphique seulement (la prédiction ci-dessus, elle, ne bouge pas)
     m["live"] = predict_live(home, away, m["minute"], tuple(m["score"]), *m["red"])
     hist = history_store.setdefault(m["id"], [])
     if not hist or hist[-1][0] != m["minute"]:
@@ -167,6 +181,38 @@ async def broadcast() -> None:
             await ws.send_json(payload_for(code))
         except Exception:
             clients.pop(ws, None)
+
+
+def yesterday_str() -> str:
+    return (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+
+
+def build_history_coupons() -> None:
+    """Coupons d'hier : ceux gardés en mémoire s'ils existent, sinon reconstitués (même méthode, mêmes statistiques)."""
+    y = history["date"]
+    if previous.get("date") == y and previous.get("coupons"):
+        history["coupons"], history["source"], history["coupons_ok"] = previous["coupons"], "original", True
+        return
+    usable = [m for m in history["matches"] if m["home"] in real_strengths and m["away"] in real_strengths]
+    if not real_strengths:
+        return  # statistiques pas encore chargées : on réessaiera à la prochaine demande
+    cs = coupons.build_coupons(usable, {t: blended(t) for t in real_strengths}) if usable else []
+    coupons.settle({"coupons": cs}, {m["id"]: m for m in history["matches"]})
+    history["coupons"], history["source"], history["coupons_ok"] = cs, "reconstitue", True
+
+
+async def ensure_history() -> None:
+    y = yesterday_str()
+    if USE_REAL and history["date"] != y and time.time() - history["try"] > 600:
+        history["try"] = time.time()
+        import data_provider
+        try:
+            got = await asyncio.to_thread(data_provider.fetch_day, y)
+            history.update(date=y, matches=got, coupons=[], coupons_ok=False)
+        except Exception as e:
+            print(f"[history] erreur : {e}")
+    if history["date"] == y and not history["coupons_ok"]:
+        build_history_coupons()
 
 
 # --- Coupons du jour (régénérés à 00h) -----------------------------------------------------
@@ -265,12 +311,22 @@ def real_minute(m: dict, old: dict | None) -> None:
         m["minute"] = min(45, 1 + int((now - ph["h1"]) / 60))
 
 
+def blended(team: str) -> dict:
+    """Force de l'équipe : statistiques de la saison mélangées à la forme des 6 derniers matchs."""
+    base = real_strengths.get(team)
+    if base is None:
+        return TEAMS.get(team, DEFAULT_TEAM)
+    gfs = [sum(g["gf"] for g in gs) / len(gs) for gs in real_form.values() if gs]
+    avg = sum(gfs) / len(gfs) if gfs else 0.0
+    return blend_strength(base, real_form.get(team), avg)
+
+
 def apply_matches(fresh: list[dict]) -> None:
     """Met à jour la liste des matchs d'un seul bloc (pas de liste vide visible entre deux actualisations)."""
     new: dict[int, dict] = {}
     for m in fresh:
         for team in (m["home"], m["away"]):
-            TEAMS[team] = real_strengths.get(team, TEAMS.get(team, DEFAULT_TEAM))
+            TEAMS[team] = blended(team)
         # Prédiction fiable seulement si les deux équipes ont de vraies statistiques
         m["reliable"] = m["home"] in real_strengths and m["away"] in real_strengths
         real_minute(m, matches.get(m["id"]))
@@ -329,6 +385,9 @@ async def strengths_loop() -> None:
             if got:
                 real_strengths.update(got)
                 real_form.update(await asyncio.to_thread(data_provider.fetch_form))
+                for mid, m in matches.items():  # les matchs pas encore commencés profitent des nouvelles statistiques
+                    if m["status"] == "scheduled":
+                        frozen.pop(mid, None)
                 apply_matches(list(matches.values()))
                 daily["stale"] = True  # les coupons doivent être refaits avec les vraies statistiques
                 await ensure_daily()
@@ -429,6 +488,18 @@ def get_daily(x_access_code: str = Header(default="")):
     out = {k: v for k, v in daily.items() if k not in ("ts", "stale")}
     if previous:
         out["previous"] = {k: previous[k] for k in ("date", "coupons") if k in previous}
+    return out
+
+
+@app.get("/yesterday")
+async def get_yesterday(x_access_code: str = Header(default="")):
+    """Résultats d'hier (gratuit) et coupons d'hier avec leurs événements (Premium)."""
+    await ensure_history()
+    premium = access.check_code(x_access_code) is not None
+    out = {"date": history["date"] or yesterday_str(), "mode": mode(), "premium": premium,
+           "matches": [{k: m[k] for k in ("id", "league", "home", "away", "score", "kickoff")} for m in history["matches"]]}
+    if premium:
+        out["coupons"], out["source"] = history["coupons"], history["source"]
     return out
 
 

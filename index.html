@@ -39,6 +39,8 @@ h1 { font-family: var(--display); font-size: 34px; letter-spacing: .02em; text-t
 .notice { color: var(--muted); font-size: 13px; margin: 0; }
 .tabs { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -2px; padding: 2px; }
 .tabs::-webkit-scrollbar { display: none; }
+.yrow { display: grid; grid-template-columns: 64px 1fr auto; gap: 12px; align-items: center; border-top: 1px solid var(--line); padding: 12px 14px; }
+.yrow > .when, .yrow > .teams, .yrow > .sc { grid-area: auto; }
 .lchips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 0 -2px 12px; padding: 2px; }
 .lchips::-webkit-scrollbar { display: none; }
 .lchip { background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; flex: 0 0 auto; }
@@ -92,7 +94,7 @@ h2 { font-family: var(--display); font-size: 18px; letter-spacing: .06em; text-t
 .odds { font-family: var(--display); font-size: 34px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
 .leg { border-top: 1px solid var(--line); padding-top: 8px; display: flex; justify-content: space-between; gap: 12px; font-size: 14px; }
 .leg small { color: var(--muted); display: block; }
-.badge { display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; margin-top: 6px; }
+.badge { display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; margin-top: 6px; white-space: nowrap; }
 .badge.won { background: var(--home); color: #04101f; }
 .badge.lost { background: rgba(255,107,87,.16); color: var(--away); }
 .badge.pending { background: var(--pitch); color: var(--muted); border: 1px solid var(--line); }
@@ -153,6 +155,7 @@ footer { color: var(--muted); font-size: 12px; }
     <button class="tab" type="button" role="tab" data-tab="direct">Direct</button>
     <button class="tab" type="button" role="tab" data-tab="today">Aujourd'hui</button>
     <button class="tab" type="button" role="tab" data-tab="tomorrow">Demain</button>
+    <button class="tab" type="button" role="tab" data-tab="yesterday">Hier</button>
     <button class="tab" type="button" role="tab" data-tab="coupons">Coupons du jour</button>
     <button class="tab" type="button" role="tab" data-tab="grands">Grands matchs</button>
   </nav>
@@ -164,7 +167,7 @@ footer { color: var(--muted); font-size: 12px; }
 <script>
 (function () {
   var matches = [], mode = "", season = null, connected = false, dataError = null;
-  var cfg = {}, code = lsGet("fp_code"), premium = false, expires = null, tab = "today", daily = null, ws = null, leagueFilter = "";
+  var cfg = {}, code = lsGet("fp_code"), premium = false, expires = null, tab = "today", daily = null, ws = null, leagueFilter = "", yday = null, ydayAt = 0;
 
   function lsGet(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
@@ -232,7 +235,7 @@ footer { color: var(--muted); font-size: 12px; }
   function oddsCells(m) {
     if (m.locked) return '<span class="lockrow">🔒 Probabilités 1 · N · 2 réservées aux abonnés Premium</span>';
     if (m.reliable === false) return '<span class="lockrow">Statistiques insuffisantes pour ce match</span>';
-    var v = pct3(P(m.live)), top = v.indexOf(Math.max(v[0], v[1], v[2])), labels = ["1", "N", "2"];
+    var v = pct3(P(m.prematch)), top = v.indexOf(Math.max(v[0], v[1], v[2])), labels = ["1", "N", "2"];
     return v.map(function (p, i) { return '<span class="c3' + (i === top ? " top" : "") + '"><i>' + labels[i] + "</i><b>" + p + " %</b></span>"; }).join("");
   }
   function row(m) {
@@ -289,16 +292,16 @@ footer { color: var(--muted); font-size: 12px; }
     if (m.reliable === false) {
       return head + '<div class="panel"><h2>Prédiction</h2>' + nodata() + "</div>" + events;
     }
-    var L = P(m.live);
+    var L = P(m.prematch);
     return head +
-      '<div class="panel"><h2>' + (m.status === "live" ? "Probabilités en direct" : m.status === "finished" ? "Dernières probabilités" : "Probabilités avant-match") + "</h2>" + stack(L) + "</div>" +
+      '<div class="panel"><h2>Prédiction avant-match</h2>' + stack(L) + '<p class="nodata">Calculée avant le coup d\'envoi : elle ne change pas pendant le match.</p></div>' +
       '<div class="panel"><h2>Autres marchés</h2><div class="markets">' +
       '<div class="market"><small>Plus de 2,5 buts</small><b>' + Math.round(L.o25 * 100) + " %</b></div>" +
       '<div class="market"><small>Les deux marquent</small><b>' + Math.round(L.btts * 100) + " %</b></div>" +
       '<div class="market"><small>Score final probable</small><b>' + esc(L.score) + "</b></div>" +
-      '<div class="market"><small>Buts attendus restants</small><b>' + L.xh.toFixed(2) + " – " + L.xa.toFixed(2) + "</b></div></div></div>" +
-      (m.status === "live" ? '<div class="panel"><h2>Évolution minute par minute</h2>' + chart(m) + '<div class="key"><span><i class="h"></i>Domicile</span><span><i class="d"></i>Nul</span><span><i class="a"></i>Extérieur</span></div></div>' : "") +
-      '<div class="panel"><h2>Avant le match</h2>' + stack(P(m.prematch)) + "</div>" + formPanel(m) + events;
+      '<div class="market"><small>Buts attendus (match entier)</small><b>' + rg(L.xh.toFixed(2)) + " – " + rg(L.xa.toFixed(2)) + "</b></div></div></div>" +
+      (m.status === "live" || (m.status === "finished" && (m.history || []).length > 1) ? '<div class="panel"><h2>Évolution du match (minute par minute)</h2>' + chart(m) + '<div class="key"><span><i class="h"></i>Domicile</span><span><i class="d"></i>Nul</span><span><i class="a"></i>Extérieur</span></div><p class="nodata">Ce graphique suit le déroulement du match (score, minute, cartons). La prédiction avant-match, elle, reste fixe.</p></div>' : "") +
+      formPanel(m) + events;
   }
 
   function lockedPanel(text) { return '<div class="panel"><h2>Réservé aux abonnés</h2><p class="lock">🔒 ' + esc(text) + '</p><p class="nodata">Choisis une formule (1 semaine ou 1 mois) plus haut pour débloquer.</p></div>'; }
@@ -322,6 +325,43 @@ footer { color: var(--muted); font-size: 12px; }
       return '<div class="leg"><div><b>' + esc(c.label) + '</b></div><div class="n"><span class="badge ' + st + '" style="margin:0">' + (st === "won" ? "✓ Gagné" : st === "lost" ? "Perdu" : "En cours") + "</span></div></div>";
     }).join("");
     return '<div class="panel"><h2>Résultats de la veille</h2><span class="tag">' + fmtDate(p.date) + "</span>" + items + "</div>";
+  }
+  function loadYesterday(force) {
+    if (!force && yday && Date.now() - ydayAt < 120000) return;
+    fetch("/yesterday", { headers: { "x-access-code": code } }).then(function (r) { return r.json(); }).then(function (d) {
+      yday = d; ydayAt = Date.now(); if (tab === "yesterday") render();
+    }).catch(function () {});
+  }
+  function yesterdayView() {
+    if (!yday) return '<p class="empty">Chargement des résultats d\'hier…</p>';
+    var arr = yday.matches.slice();
+    var out = '<div class="list"><p class="dayhead">Hier · ' + fmtDate(yday.date) + "</p>";
+    if (!arr.length) out += '<p class="empty">' + (yday.mode === "reel" ? "Aucun match terminé hier dans les compétitions suivies (ou données indisponibles)." : "L'historique est disponible avec les données réelles.") + "</p>";
+    var counts = {}, names = [];
+    arr.forEach(function (m) { if (!(m.league in counts)) { counts[m.league] = 0; names.push(m.league); } counts[m.league]++; });
+    names.sort();
+    if (leagueFilter && !(leagueFilter in counts)) leagueFilter = "";
+    if (names.length > 1) out += '<div class="lchips"><button class="lchip' + (leagueFilter ? "" : " on") + '" type="button" data-league="">Tous (' + arr.length + ")</button>" + names.map(function (n) {
+      return '<button class="lchip' + (leagueFilter === n ? " on" : "") + '" type="button" data-league="' + esc(n) + '">' + esc(n) + " (" + counts[n] + ")</button>";
+    }).join("") + "</div>";
+    if (leagueFilter) arr = arr.filter(function (m) { return m.league === leagueFilter; });
+    var groups = [], idx = {};
+    arr.forEach(function (m) { if (!(m.league in idx)) { idx[m.league] = groups.length; groups.push({ name: m.league, items: [] }); } groups[idx[m.league]].items.push(m); });
+    out += groups.map(function (g) {
+      return '<section class="grp"><h3 class="lg"><span>' + esc(g.name) + "</span><span>" + g.items.length + "</span></h3>" + g.items.map(function (m) {
+        var d = m.kickoff ? new Date(m.kickoff) : null;
+        return '<div class="yrow"><div class="when">Fin' + (d && !isNaN(d) ? "<small>" + hhmm(d) + "</small>" : "") + '</div><div class="teams"><span>' + esc(m.home) + "</span><span>" + esc(m.away) + '</span></div><div class="sc"><span>' + m.score[0] + "</span><span>" + m.score[1] + "</span></div></div>";
+      }).join("") + "</section>";
+    }).join("");
+    if (!premium || !yday.coupons) {
+      out += lockedPanel("Les coupons d'hier et leurs résultats sont réservés aux abonnés Premium.");
+    } else {
+      var real = yday.coupons.filter(function (c) { return !c.empty; }), won = real.filter(function (c) { return c.status === "won"; }).length;
+      out += '<h3 class="lg" style="margin-top:18px"><span>Coupons d\'hier</span><span>' + won + " gagné(s) sur " + real.length + "</span></h3>";
+      out += yday.coupons.length ? yday.coupons.map(couponCard).join("") : '<p class="empty">Aucun coupon pour hier.</p>';
+      if (yday.source === "reconstitue") out += '<p class="nodata">Coupons recomposés avec la même méthode et les statistiques actuelles (le serveur a redémarré depuis hier) : ils peuvent différer légèrement de ceux publiés.</p>';
+    }
+    return out + "</div>";
   }
   function couponsView() {
     if (!premium) return lockedPanel("Les 3 coupons du jour sont réservés aux abonnés Premium.");
@@ -347,7 +387,7 @@ footer { color: var(--muted); font-size: 12px; }
   function currentId() { var h = location.hash.match(/^#match-(\d+)$/); return h ? +h[1] : 0; }
   function render() {
     var isList = tab === "direct" || tab === "today" || tab === "tomorrow", id = isList ? currentId() : 0, m = matches.filter(function (x) { return x.id === id; })[0], sy = window.scrollY;
-    app.innerHTML = tab === "coupons" ? couponsView() : tab === "grands" ? bigView() : (m ? detail(m) : list(tab));
+    app.innerHTML = tab === "yesterday" ? yesterdayView() : tab === "coupons" ? couponsView() : tab === "grands" ? bigView() : (m ? detail(m) : list(tab));
     window.scrollTo(0, sy);
     document.getElementById("dot").className = "dot" + (connected ? " on" : "");
     document.getElementById("state").textContent = !connected ? "Reconnexion…" : mode === "reel" ? "Données réelles" : "Simulation (démo)";
@@ -374,7 +414,7 @@ footer { color: var(--muted); font-size: 12px; }
   function setPremium(p, exp) {
     var changed = p !== premium;
     premium = p; expires = exp || null;
-    if (changed) { daily = null; if (p) loadDaily(); }
+    if (changed) { yday = null; if (tab === "yesterday") loadYesterday(true); daily = null; if (p) loadDaily(); }
   }
 
   app.addEventListener("click", function (e) {
@@ -388,6 +428,7 @@ footer { color: var(--muted); font-size: 12px; }
     var b = e.target.closest(".tab");
     if (!b) return;
     tab = b.getAttribute("data-tab");
+    if (tab === "yesterday") loadYesterday(true);
     if (location.hash) { location.hash = ""; } else { render(); window.scrollTo(0, 0); }
   });
   window.addEventListener("hashchange", function () { render(); window.scrollTo(0, 0); });

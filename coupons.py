@@ -137,19 +137,78 @@ def pick_big_matches(matches: list[dict], teams: dict, n: int = 3) -> list[dict]
     return sorted(matches, key=importance, reverse=True)[:n]
 
 
+def _verdict(p_fav: float) -> str:
+    if p_fav >= 0.60:
+        return "net favori"
+    if p_fav >= 0.48:
+        return "favori"
+    if p_fav >= 0.40:
+        return "léger favori"
+    return "à peine favori"
+
+
+def _de(name: str) -> str:
+    return ("d'" if name[:1].lower() in "aeiouyhéèê" else "de ") + name
+
+
+def _fr(x: float, nd: int = 2) -> str:
+    return f"{x:.{nd}f}".replace(".", ",")
+
+
+def _form_line(match: dict) -> str:
+    """Forme récente comparée : qui arrive en meilleure dynamique (points sur les 6 derniers matchs)."""
+    form = match.get("form")
+    if not form:
+        return ""
+    h, a = form["home"]["summary"], form["away"]["summary"]
+    if not h["n"] or not a["n"]:
+        return ""
+    ph, pa = h["pts"] / (3 * h["n"]), a["pts"] / (3 * a["n"])
+    line = (f"Sur ses {h['n']} derniers matchs, {match['home']} a pris {h['pts']} points sur {3 * h['n']} "
+            f"({h['gf']} buts marqués, {h['ga']} encaissés) ; {match['away']} en a pris {a['pts']} sur {3 * a['n']} "
+            f"({a['gf']} marqués, {a['ga']} encaissés). ")
+    if abs(ph - pa) >= 0.25:
+        better = match["home"] if ph > pa else match["away"]
+        line += f"La dynamique récente est nettement en faveur {_de(better)}. "
+    else:
+        line += "Les deux équipes arrivent avec une dynamique comparable. "
+    return line
+
+
+def _markets_line(probs: dict) -> str:
+    """Les deux marchés les plus probables parmi ceux qui ne sont pas triviaux."""
+    options = [("plus de 1,5 but", probs["over_1_5"]), ("plus de 2,5 buts", probs["over_2_5"]),
+               ("moins de 3,5 buts", probs["under_3_5"]), ("les deux équipes marquent", probs["btts_yes"]),
+               ("une seule équipe marque ou aucune", probs["btts_no"])]
+    options = sorted((o for o in options if 0.55 <= o[1] <= 0.90), key=lambda o: -o[1])[:2]
+    if not options:
+        return ""
+    return "Marchés les plus probables selon le modèle : " + " ; ".join(f"{n} ({round(p * 100)} %)" for n, p in options) + ". "
+
+
 def template_analysis(match: dict, lh: float, la: float, probs: dict, score: str) -> str:
     home, away = match["home"], match["away"]
     if probs["1"] >= probs["2"]:
         fav, p_fav, other, p_other = home, probs["1"], away, probs["2"]
     else:
         fav, p_fav, other, p_other = away, probs["2"], home, probs["1"]
+    balanced = abs(probs["1"] - probs["2"]) < 0.08
+    head = (
+        f"Match équilibré : {home} {round(probs['1'] * 100)} %, nul {round(probs['X'] * 100)} %, {away} {round(probs['2'] * 100)} %. "
+        if balanced else
+        f"{fav} est {_verdict(p_fav)} avec {round(p_fav * 100)} % de chances de victoire, contre {round(probs['X'] * 100)} % "
+        f"pour le nul et {round(p_other * 100)} % pour {other}. "
+    )
+    goals = lh + la
+    tempo = "un match plutôt ouvert" if goals >= 2.9 else "un match plutôt fermé" if goals <= 2.2 else "un volume de buts moyen"
+    body = (
+        f"Le modèle attend {_fr(lh)} but pour {home} et {_fr(la)} pour {away} (soit {_fr(goals, 1)} au total : {tempo}) ; "
+        f"le score le plus probable est {score}. "
+    )
     return (
-        f"{fav} part favori avec environ {round(p_fav * 100)} % de chances de victoire, contre "
-        f"{round(probs['X'] * 100)} % pour le nul et {round(p_other * 100)} % pour {other}. "
-        f"Le modèle attend {lh:.2f} but pour {home} et {la:.2f} pour {away} ; le score le plus probable est {score}. "
-        f"Plus de 2,5 buts : {round(probs['over_2_5'] * 100)} % ; les deux équipes marquent : {round(probs['btts_yes'] * 100)} %. "
-        "Cette lecture repose uniquement sur les statistiques de buts de la saison : "
-        "compositions, blessures et enjeu du match ne sont pas pris en compte."
+        head + body + _form_line(match) + _markets_line(probs) +
+        "Ces chiffres sont des probabilités calculées avant le coup d'envoi (statistiques de la saison et forme récente) : "
+        "compositions, blessures et enjeu ne sont pas pris en compte, et rien n'est jamais certain."
     )
 
 
@@ -160,11 +219,14 @@ def claude_analysis(match: dict, facts: str) -> str | None:
         return None
     body = {
         "model": os.getenv("ANALYSIS_MODEL", "claude-sonnet-5-5"),
-        "max_tokens": 500,
+        "max_tokens": 800,
         "system": (
-            "Tu es analyste football. Rédige en français une analyse de 4 à 5 phrases à partir UNIQUEMENT "
-            "des chiffres fournis. N'invente ni blessures, ni compositions, ni résultats récents. "
-            "Dis clairement que ce sont des probabilités, jamais des certitudes. Pas de promesse de gain."
+            "Tu es un analyste football rigoureux. Rédige en français une analyse de 6 à 8 phrases, structurée en trois "
+            "temps : (1) la lecture du match (favori, équilibre, buts attendus, score probable) ; (2) la forme récente "
+            "des deux équipes et ce qu'elle change ; (3) les marchés les plus solides et les points d'incertitude. "
+            "Appuie-toi UNIQUEMENT sur les chiffres fournis : n'invente ni blessures, ni compositions, ni résultats, ni "
+            "enjeux. Compare, interprète, ne te contente pas de recopier les chiffres. Dis clairement que ce sont des "
+            "probabilités, jamais des certitudes, et ne promets aucun gain."
         ),
         "messages": [{"role": "user", "content": facts}],
     }
@@ -206,7 +268,8 @@ def analyse_match(match: dict, teams: dict) -> dict:
         f"Match : {match['home']} (domicile) contre {match['away']} ({match['league']}).\n"
         f"Buts attendus : {lh:.2f} pour {match['home']}, {la:.2f} pour {match['away']}.\n"
         f"Probabilités : victoire {match['home']} {probs['1']:.0%}, nul {probs['X']:.0%}, victoire {match['away']} {probs['2']:.0%}.\n"
-        f"Plus de 2,5 buts : {probs['over_2_5']:.0%} ; les deux marquent : {probs['btts_yes']:.0%} ; score le plus probable : {score}."
+        f"Plus de 1,5 but : {probs['over_1_5']:.0%} ; plus de 2,5 buts : {probs['over_2_5']:.0%} ; moins de 3,5 buts : {probs['under_3_5']:.0%} ; "
+        f"les deux marquent : {probs['btts_yes']:.0%} ; score le plus probable : {score}."
         + (f"\nForme récente : {recent}" if recent else "")
     )
     text = claude_analysis(match, facts)
@@ -215,7 +278,7 @@ def analyse_match(match: dict, teams: dict) -> dict:
         "home_win": round(probs["1"], 4), "draw": round(probs["X"], 4), "away_win": round(probs["2"], 4),
         "over_2_5": round(probs["over_2_5"], 4), "btts": round(probs["btts_yes"], 4),
         "most_likely_score": score, "xg_home": round(lh, 2), "xg_away": round(la, 2),
-        "analysis": text or (template_analysis(match, lh, la, probs, score) + (f" Forme récente : {recent}" if recent else "")),
+        "analysis": text or template_analysis(match, lh, la, probs, score),
         "analysis_source": "claude" if text else "modele",
     }
 

@@ -92,6 +92,25 @@ def market_probs(lam_home: float, lam_away: float) -> dict:
     return p
 
 
+FORM_WEIGHT = 0.30  # part de la forme récente dans la force d'une équipe (le reste : statistiques de la saison)
+FORM_PRIOR_GAMES = 4  # 6 matchs seulement : on ramène la forme vers la moyenne pour ne pas sur-réagir
+
+
+def blend_strength(base: dict, games: list[dict] | None, avg_gf: float) -> dict:
+    """Mélange la force de saison (70 %) avec la forme sur les derniers matchs (30 %, ramenée vers la moyenne)."""
+    if not games or avg_gf <= 0:
+        return base
+    n = len(games)
+    gf = sum(g["gf"] for g in games)
+    ga = sum(g["ga"] for g in games)
+    f_att = ((gf + FORM_PRIOR_GAMES * avg_gf) / (n + FORM_PRIOR_GAMES)) / avg_gf
+    f_def = ((ga + FORM_PRIOR_GAMES * avg_gf) / (n + FORM_PRIOR_GAMES)) / avg_gf
+    return {
+        "attack": round((1 - FORM_WEIGHT) * base["attack"] + FORM_WEIGHT * f_att, 3),
+        "defense": round((1 - FORM_WEIGHT) * base["defense"] + FORM_WEIGHT * f_def, 3),
+    }
+
+
 def predict_prematch(home: dict, away: dict) -> dict:
     lh, la = expected_goals(home, away)
     result = summarize(score_matrix(lh, la))

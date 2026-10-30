@@ -262,6 +262,21 @@ def fetch_form() -> dict[str, list[dict]]:
     return result
 
 
+def fetch_day(day: str) -> list[dict]:
+    """Matchs terminés d'une journée donnée (AAAA-MM-JJ, UTC) des compétitions suivies. Une seule requête."""
+    nxt = (datetime.strptime(day, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+    data = _get(f"/matches?dateFrom={day}&dateTo={nxt}")
+    out = []
+    for f in data.get("matches", []):
+        if str(f.get("utcDate", ""))[:10] != day:
+            continue
+        m = parse_match(f)
+        if m and m["status"] == "finished" and m["league_code"] in COMPETITIONS:
+            out.append(m)
+    out.sort(key=lambda m: (m["kickoff"] or "", m["league"]))
+    return out
+
+
 def fetch_matches() -> list[dict]:
     """Matchs d'aujourd'hui et de demain des compétitions suivies, au format interne de l'application."""
     now = datetime.now(timezone.utc)
