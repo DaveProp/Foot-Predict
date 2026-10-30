@@ -235,7 +235,7 @@ footer { color: var(--muted); font-size: 12px; }
   function oddsCells(m) {
     if (m.locked) return '<span class="lockrow">🔒 Probabilités 1 · N · 2 réservées aux abonnés Premium</span>';
     if (m.reliable === false) return '<span class="lockrow">Statistiques insuffisantes pour ce match</span>';
-    var v = pct3(P(m.prematch)), top = v.indexOf(Math.max(v[0], v[1], v[2])), labels = ["1", "N", "2"];
+    var v = pct3(P(m.live || m.prematch)), top = v.indexOf(Math.max(v[0], v[1], v[2])), labels = ["1", "N", "2"];
     return v.map(function (p, i) { return '<span class="c3' + (i === top ? " top" : "") + '"><i>' + labels[i] + "</i><b>" + p + " %</b></span>"; }).join("");
   }
   function row(m) {
@@ -292,15 +292,16 @@ footer { color: var(--muted); font-size: 12px; }
     if (m.reliable === false) {
       return head + '<div class="panel"><h2>Prédiction</h2>' + nodata() + "</div>" + events;
     }
-    var L = P(m.prematch);
+    var L = P(m.live || m.prematch), PRE = P(m.prematch);
     return head +
-      '<div class="panel"><h2>Prédiction avant-match</h2>' + stack(L) + '<p class="nodata">Calculée avant le coup d\'envoi : elle ne change pas pendant le match.</p></div>' +
-      '<div class="panel"><h2>Autres marchés</h2><div class="markets">' +
-      '<div class="market"><small>Plus de 2,5 buts</small><b>' + Math.round(L.o25 * 100) + " %</b></div>" +
-      '<div class="market"><small>Les deux marquent</small><b>' + Math.round(L.btts * 100) + " %</b></div>" +
-      '<div class="market"><small>Score final probable</small><b>' + esc(L.score) + "</b></div>" +
-      '<div class="market"><small>Buts attendus (match entier)</small><b>' + rg(L.xh.toFixed(2)) + " – " + rg(L.xa.toFixed(2)) + "</b></div></div></div>" +
-      (m.status === "live" || (m.status === "finished" && (m.history || []).length > 1) ? '<div class="panel"><h2>Évolution du match (minute par minute)</h2>' + chart(m) + '<div class="key"><span><i class="h"></i>Domicile</span><span><i class="d"></i>Nul</span><span><i class="a"></i>Extérieur</span></div><p class="nodata">Ce graphique suit le déroulement du match (score, minute, cartons). La prédiction avant-match, elle, reste fixe.</p></div>' : "") +
+      '<div class="panel"><h2>' + (m.status === "live" ? "Probabilités en direct" : m.status === "finished" ? "Dernières probabilités" : "Probabilités avant-match") + "</h2>" + stack(L) + (m.status === "live" ? '<p class="nodata">Mises à jour à chaque minute selon le score, le temps restant et les cartons rouges.</p>' : "") + "</div>" +
+      '<div class="panel"><h2>Autres marchés (fixes)</h2><div class="markets">' +
+      '<div class="market"><small>Plus de 2,5 buts</small><b>' + Math.round(PRE.o25 * 100) + " %</b></div>" +
+      '<div class="market"><small>Les deux marquent</small><b>' + Math.round(PRE.btts * 100) + " %</b></div>" +
+      '<div class="market"><small>Score final probable</small><b>' + esc(PRE.score) + "</b></div>" +
+      '<div class="market"><small>' + "Buts attendus (match entier)" + '</small><b>' + rg(PRE.xh.toFixed(2)) + " – " + rg(PRE.xa.toFixed(2)) + "</b></div></div></div>" +
+      (m.status === "live" || (m.status === "finished" && (m.history || []).length > 1) ? '<div class="panel"><h2>Évolution du match (minute par minute)</h2>' + chart(m) + '<div class="key"><span><i class="h"></i>Domicile</span><span><i class="d"></i>Nul</span><span><i class="a"></i>Extérieur</span></div><p class="nodata">Ce graphique suit le déroulement du match (score, minute, cartons).</p></div>' : "") +
+      (m.status !== "scheduled" ? '<div class="panel"><h2>Prédiction avant-match (fixe)</h2>' + stack(PRE) + '<p class="nodata">Calculée avant le coup d\'envoi : elle ne change pas pendant le match.</p></div>' : "") +
       formPanel(m) + events;
   }
 
